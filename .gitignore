@@ -1,0 +1,17 @@
+# Scala-specific
+
+*.class
+*.log
+target/
+.cache
+.lib/
+dist/*
+project/plugins/project/
+
+## IntelliJ-specific
+
+.idea/
+project/
+.scala_dependencies
+.worksheet
+
