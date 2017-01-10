@@ -9,9 +9,11 @@
 
 | x | # | Given | When | Then |
 |---|---| ----- | ---- | ---- |
-|   | 1 | A server running on `localhost` | An `eventSource` tries to connect to `localhost:9009` | The connection is accepted and the server logs `Connected to event source.` |
-|   | 2 | " | A client connects to `localhost:9099` and sends the message `1\r\n` | The connection is accepted and the server logs: `New client with id 1 added. 1 total client(s).` |
-|   | 3 | " | A client connects to `localhost:9099` and sends the messasge `2\r\n` | The connection is accepted and the server logs: `New client with id 2 added. 2 total client(s).` | 
+| x | 1 | A server running on `localhost` | An `eventSource` tries to connect to `localhost:9009` | The connection is accepted and the server logs `Connected to event source.` |
+| x | 2 | " | A client connects to `localhost:9099` and sends the message `1\r\n` | The connection is accepted and the server logs: `New client with id 1 added. 1 total client(s).` |
+| x | 3 | " | A client connects to `localhost:9099` and sends the messasge `2\r\n` | The connection is accepted and the server logs: `New client with id 2 added. 2 total client(s).` | 
+| x | 4 | " AND a connected event source and connected client | The event source disconnects | The disconnection is logged and the client is disconnected |
+|   | 5 | " AND " | The event source disconnects | The disconnection is logged and the server will not attempt to forward messages to the client |
 
 # Send a broadcast message
 
@@ -22,7 +24,7 @@
 
 | x | # | Given | When | Then |
 |---|---| ----- | ---- | ---- |
-|   | 1 | A running server, a connected `eventSource` and two clients, Alice and Bob | The `eventSource` sends the server a `Broadcast` message (as defined below) | Alice and Bob both receive the message |
+| / | 1 | A running server, a connected `eventSource` and two clients, Alice and Bob | The `eventSource` sends the server a `Broadcast` message (as defined below) | Alice and Bob both receive the message |
 |   | 2 | " | The `eventSource` sends a `Broadcast` message w/ sequence # 2, *then* a `Broadcast` message w/ sequence # 1 (as defined below) | Alice and Bob will both receive both broadcast messages in the proper sequence |    
 
 ## Definitions
