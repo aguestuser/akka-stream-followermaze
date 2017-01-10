@@ -11,8 +11,9 @@ object DispatchFlows {
 
   // serialization
 
-  private val delimiter = "\r\n"
-  private val delimiterBytes = ByteString(delimiter)
+  val delimiter: String = "\r\n"
+  val delimiterBytes: ByteString = ByteString(delimiter)
+
   private val frameLength = 256
   private val truncation = true
 
