@@ -8,6 +8,7 @@ libraryDependencies ++= {
 
   val akkaVersion = "2.4.16"
   val scalaTestVersion = "3.0.0"
+  val netcatyVersion = "1.4"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor"          % akkaVersion,

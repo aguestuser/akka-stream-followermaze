@@ -13,6 +13,7 @@ class DispatchFlows$Test extends WordSpec with Matchers {
   import DispatchFlows.{subscribeFlow, eventSourceFlow, delimiter}
   import com.example.codec.MessageEventCodec.encode
   import scala.concurrent.duration._
+
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
 
@@ -53,6 +54,8 @@ class DispatchFlows$Test extends WordSpec with Matchers {
 
         client1Pub.sendNext(ByteString("123\r\n"))
         client2Pub.sendNext(ByteString("456\r\n"))
+
+        Thread.sleep(100) // to ensure clients have registered
         eventSourcePub.sendNext(ByteString("1\\|B\r\n"))
 
         // actually assert stuff! :P
