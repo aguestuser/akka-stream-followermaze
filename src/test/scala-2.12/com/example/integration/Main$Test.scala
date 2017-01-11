@@ -8,6 +8,7 @@ import akka.util.ByteString
 import com.example.Main
 import com.example.support.TcpClient
 import org.scalatest.{Matchers, WordSpec}
+import com.example.dispatch.DispatchFlows.delimiter
 
 import scala.concurrent.duration._
 
@@ -16,6 +17,7 @@ class Main$Test extends WordSpec with Matchers {
   Main.run()
 
   "The program" should {
+
 
     implicit val system = ActorSystem()
     val timeout = 200 milli
@@ -46,18 +48,18 @@ class Main$Test extends WordSpec with Matchers {
       List(eventSource, alice, bob).foreach(_.receiveOne(timeout))
 
       // subscribe alice and bob
-      aliceClient ! ByteString("123\r\n")
-      bobClient ! ByteString("456\r\n")
+      aliceClient ! ByteString(s"123$delimiter")
+      bobClient ! ByteString(s"456$delimiter")
 
       // wait to ensure clients have registered
       Thread.sleep(100)
 
       // emit broadcast message from event source
-      eventSourceClient ! ByteString("1\\|B\r\n")
+      eventSourceClient ! ByteString(s"1|B$delimiter")
 
       // expect broadcast
-      alice.expectMsg(ByteString("1\\|B\r\n"))
-      bob.expectMsg(ByteString("1\\|B\r\n"))
+      alice.expectMsg(ByteString(s"1|B$delimiter"))
+      bob.expectMsg(ByteString(s"1|B$delimiter"))
     }
   }
 }

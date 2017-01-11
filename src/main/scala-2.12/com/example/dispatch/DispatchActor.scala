@@ -34,7 +34,7 @@ class DispatchActor extends Actor with DispatchLog {
       logEventSourceTermination(subscribers.size)
 
     case InvalidMessage(msg) =>
-      log(s"Received invalid message: $msg")
+      //log(s"Received invalid message: $msg")
 
     case BroadcastMessage(seqNum) =>
       val msg = encode(BroadcastMessage(seqNum))

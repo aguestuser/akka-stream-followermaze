@@ -23,7 +23,7 @@ private object MessageEventDecoder extends StringDecoder {
 private object MessageEventEncoder {
 
   def apply(me: MessageEvent): String = me match {
-    case BroadcastMessage(seqNum) => s"$seqNum\\|B"
+    case BroadcastMessage(seqNum) => s"$seqNum|B"
     case InvalidMessage(msg) => s"Invalid message: $msg"
   }
 }

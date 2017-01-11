@@ -11,7 +11,8 @@ object DispatchFlows {
 
   // serialization
 
-  val delimiter: String = "\r\n"
+  // for some reason, this works with test scripts, *not* `\r\n`
+  val delimiter: String = "\n"
   val delimiterBytes: ByteString = ByteString(delimiter)
 
   private val frameLength = 256

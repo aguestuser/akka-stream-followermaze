@@ -7,6 +7,7 @@ import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.testkit.TestProbe
 import akka.util.ByteString
 import org.scalatest.{Matchers, WordSpec}
+import DispatchFlows.delimiter
 
 class DispatchFlows$Test extends WordSpec with Matchers {
 
@@ -19,8 +20,8 @@ class DispatchFlows$Test extends WordSpec with Matchers {
 
   private val timeout = 200 milli
 
-  private val registerMsgBytes = ByteString("123\r\n")
-  private val broadcastMsgBytes = ByteString("1\\|B\r\n")
+  private val registerMsgBytes = ByteString(s"123$delimiter")
+  private val broadcastMsgBytes = ByteString(s"1|B$delimiter")
   private val broadcastMsg = BroadcastMessage(1)
 
   "DispatchFlows" should {
@@ -52,15 +53,15 @@ class DispatchFlows$Test extends WordSpec with Matchers {
         client2Sub.request(2)
         eventSourceSub.request(1)
 
-        client1Pub.sendNext(ByteString("123\r\n"))
-        client2Pub.sendNext(ByteString("456\r\n"))
+        client1Pub.sendNext(ByteString(s"123$delimiter"))
+        client2Pub.sendNext(ByteString(s"456$delimiter"))
 
         Thread.sleep(100) // to ensure clients have registered
-        eventSourcePub.sendNext(ByteString("1\\|B\r\n"))
+        eventSourcePub.sendNext(ByteString(s"1|B$delimiter"))
 
         // actually assert stuff! :P
-        client1Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}\r\n"))
-        client2Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}\r\n"))
+        client1Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}$delimiter"))
+        client2Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}$delimiter"))
       }
     }
 
@@ -104,7 +105,7 @@ class DispatchFlows$Test extends WordSpec with Matchers {
       "route messages to the Dispatch Actor" in {
 
         sub.request(1)
-        pub.sendNext(ByteString("foobar\r\n"))
+        pub.sendNext(ByteString(s"foobar$delimiter"))
 
         dispatchActor.expectMsg(InvalidMessage("foobar"))
       }
