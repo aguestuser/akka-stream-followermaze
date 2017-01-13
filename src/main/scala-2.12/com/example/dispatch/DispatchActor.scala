@@ -3,12 +3,14 @@ package com.example.dispatch
 import akka.actor.{Actor, ActorRef}
 import akka.io.UdpConnected.Disconnect
 
-trait ConnectionEvent
+sealed trait DispatchEvent
+
+sealed trait ConnectionEvent extends DispatchEvent
 case class Subscribe(id: String, subscriber: ActorRef) extends ConnectionEvent
 case class Unsubscribe(id: String) extends ConnectionEvent
 case object EventSourceTerminated extends ConnectionEvent
 
-sealed trait MessageEvent
+sealed trait MessageEvent extends DispatchEvent
 case class BroadcastMessage(seqNum: Int) extends MessageEvent
 case class InvalidMessage(msg: String) extends MessageEvent
 
