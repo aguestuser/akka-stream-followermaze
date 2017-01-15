@@ -30,7 +30,7 @@ class Switchboard$Test extends WordSpec with Matchers {
         Map(2 -> BroadcastMessage(2), 4 -> BroadcastMessage(4))
       )
 
-      handleMessage(BroadcastMessage(1)).run(beforeState)._1 shouldEqual
+      handleMessage(BroadcastMessage(1))(beforeState)
         Switchboard(
           Map("1" -> alice.ref, "2" -> bob.ref),
           3,

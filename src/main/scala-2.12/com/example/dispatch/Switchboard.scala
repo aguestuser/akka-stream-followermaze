@@ -14,19 +14,27 @@ object Switchboard {
 
   def empty: Switchboard = Switchboard(subscribers = Map.empty[String, ActorRef], nextMsg = 1, messages = Map.empty[Int, DispatchEvent])
 
-  def handleMessage(msg: MessageEvent): State[Switchboard, Unit] = msg match {
-    case BroadcastMessage(seqNum) => for {
-      _ <- modify { enqueueMessage(seqNum, msg) }
-      _ <- modify { drainMessageQueue }
-      sb <- get[Switchboard]
-    } yield sb
-    case _ => state(())
+
+  def handleMessage(msg: MessageEvent)(switchboard: Switchboard): Switchboard = msg match {
+    case BroadcastMessage(seqNum) =>
+      enqueueAndDrain(seqNum, msg)(switchboard)
+    case _ => switchboard
   }
+
+//  def updateSwitchboard(msg: MessageEvent): State[Switchboard, Unit] = msg match {
+//    case BroadcastMessage(seqNum) => for {
+//      sb <- modify { enqueueAndDrain(seqNum, msg) }
+//    } yield sb
+//    case _ => state(())
+//  }
 
   // helpers
 
   def addSubscriber(id: String, subscriber: ActorRef)(sb: Switchboard): Switchboard =
     sb.copy(subscribers = sb.subscribers + (id -> subscriber))
+
+  def enqueueAndDrain(seqNum: Int, msg: MessageEvent): Switchboard => Switchboard =
+    enqueueMessage(seqNum, msg) _ compose drainMessageQueue
 
   def enqueueMessage(seqNum: Int, msg: MessageEvent)(sb: Switchboard): Switchboard =
     sb.copy(messages = sb.messages + (seqNum -> msg))
