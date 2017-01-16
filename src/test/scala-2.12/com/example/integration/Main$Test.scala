@@ -93,7 +93,7 @@ class Main$Test extends WordSpec with Matchers {
 
     "Relay Broadcast Messages from event source to clients" when {
 
-      "receiving one message in correct order" in withFixture { f =>
+      "receiving one message" in withFixture { f =>
 
         // emit broadcast message from event source
         f.esClient ! ByteString(s"1|B$crlf")
@@ -102,29 +102,6 @@ class Main$Test extends WordSpec with Matchers {
         // expect broadcast to clients
         f.alice.receiveOne(timeout) shouldEqual ByteString(s"1|B$crlf")
         f.bob.receiveOne(timeout) shouldEqual ByteString(s"1|B$crlf")
-      }
-
-      "receiving one message out of order" in withFixture { f =>
-
-        f.esClient ! ByteString(s"2|B$crlf")
-        f.es.receiveOne(timeout)
-
-        f.alice.expectNoMsg(timeout)
-        f.bob.expectNoMsg(timeout)
-      }
-
-      "receiving two sequential messages in order" in withFixture { f =>
-
-        f.esClient ! ByteString(s"1|B$crlf")
-        f.es.receiveOne(timeout)
-
-        f.esClient ! ByteString(s"2|B$crlf")
-        f.es.receiveOne(timeout)
-
-        val expectedMsgs = Seq(ByteString(s"1|B$crlf"), ByteString(s"2|B$crlf"))
-
-        f.alice.receiveN(2, longTimeout) shouldEqual expectedMsgs
-        f.bob.receiveN(2, longTimeout) shouldEqual expectedMsgs
       }
 
       "receiving two sequential messages out of order" in withFixture { f =>
@@ -149,26 +126,13 @@ class Main$Test extends WordSpec with Matchers {
           *
           * */
 
-
-        val smushedMessages = ByteString(s"1|B${crlf}2|B$crlf")
+        val concatenatedMessages = ByteString(s"1|B${crlf}2|B$crlf")
         val messageSeq = Seq(ByteString(s"1|B$crlf"), ByteString(s"2|B$crlf"))
 
         val aliceMsg1 = f.alice.receiveOne(timeout)
-        if (aliceMsg1 != smushedMessages)
+        if (aliceMsg1 != concatenatedMessages)
           Seq(aliceMsg1, f.alice.receiveOne(timeout)) shouldEqual messageSeq
 
-      }
-
-      "receiving two non-sequential messages" in withFixture { f =>
-
-        f.esClient ! ByteString(s"3|B$crlf")
-        f.es.receiveOne(timeout)
-
-        f.esClient ! ByteString(s"1|B$crlf")
-        f.es.receiveOne(timeout)
-
-        f.alice.expectMsgAllOf(longTimeout, ByteString(s"1|B$crlf"))
-        f.bob.expectMsgAllOf(longTimeout, ByteString(s"1|B$crlf"))
       }
     }
   }

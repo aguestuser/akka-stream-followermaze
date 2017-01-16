@@ -7,7 +7,6 @@ import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.testkit.TestProbe
 import akka.util.ByteString
 import org.scalatest.{Matchers, WordSpec}
-import DispatchFlows.crlf
 
 class DispatchFlows$Test extends WordSpec with Matchers {
 
@@ -31,12 +30,12 @@ class DispatchFlows$Test extends WordSpec with Matchers {
       // materialize client and event source flows
       val dispatchActor: ActorRef = system.actorOf(Props[DispatchActor], "TestDispatchActor")
 
-      val (client1Pub, client1Sub) = TestSource.probe[ByteString]
+      val (alicePub, aliceSub) = TestSource.probe[ByteString]
         .via(subscribeFlow(dispatchActor))
         .toMat(TestSink.probe[ByteString])(Keep.both)
         .run()
 
-      val (client2Pub, client2Sub) = TestSource.probe[ByteString]
+      val (bobPub, bobSub) = TestSource.probe[ByteString]
         .via(subscribeFlow(dispatchActor))
         .toMat(TestSink.probe[ByteString])(Keep.both)
         .run()
@@ -46,22 +45,30 @@ class DispatchFlows$Test extends WordSpec with Matchers {
         .toMat(TestSink.probe[ByteString])(Keep.both)
         .run()
 
-      "broadcast messages to all registered clients via the Dispatch Actor" in {
+      "broadcast messages subscribed clients via the Dispatch Actor" in {
 
-        // pass streams through flows
-        client1Sub.request(2)
-        client2Sub.request(2)
+        // create downstream pull
+        aliceSub.request(2)
+        bobSub.request(2)
         eventSourceSub.request(1)
 
-        client1Pub.sendNext(ByteString(s"123$crlf"))
-        client2Pub.sendNext(ByteString(s"456$crlf"))
+        // pass strings through stream
+        alicePub.sendNext(ByteString(s"123$crlf"))
+        bobPub.sendNext(ByteString(s"456$crlf"))
 
-        Thread.sleep(100) // to ensure clients have registered
+        // ensure clients have registered before sending test messages
+        Thread.sleep(100)
+
+        // send messages out-of-order
+        eventSourcePub.sendNext(ByteString(s"2|B$crlf"))
         eventSourcePub.sendNext(ByteString(s"1|B$crlf"))
 
-        // actually assert stuff! :P
-        client1Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}$crlf"))
-        client2Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}$crlf"))
+        // assert they are received in order
+        aliceSub.expectNext(ByteString(s"1|B$crlf"))
+        aliceSub.expectNext(ByteString(s"2|B$crlf"))
+
+        bobSub.expectNext(ByteString(s"1|B$crlf"))
+        bobSub.expectNext(ByteString(s"2|B$crlf"))
       }
     }
 

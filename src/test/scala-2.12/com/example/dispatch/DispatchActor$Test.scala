@@ -2,16 +2,16 @@ package com.example.dispatch
 
 import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
 import akka.testkit.TestProbe
-import org.scalatest.WordSpec
+import org.scalatest.{Matchers, WordSpec}
 
-class DispatchActor$Test extends WordSpec {
+class DispatchActor$Test extends WordSpec with Matchers {
 
   import com.example.codec.MessageEventCodec.encode
   implicit val actorSystem = ActorSystem()
-
+  val waitTime: Int = 50
 
   def withDispatchActor(test: ActorRef => Any): Any = {
-    val dispatchActor: ActorRef = actorSystem.actorOf(Props[DispatchActor], "TestDispatchActor")
+    val dispatchActor: ActorRef = actorSystem.actorOf(Props[DispatchActor])
     try {
       test(dispatchActor)
     } finally {
@@ -29,17 +29,14 @@ class DispatchActor$Test extends WordSpec {
       da ! Unsubscribe("123")
     }
 
-    "relay Broadcast messages to the switchboard" in withDispatchActor { da =>
-
-      val broadcastMessage = BroadcastMessage(1)
-
-      da ! broadcastMessage
-    }
-
     "relay a Broadcast message to all subscribed clients" when {
 
       val broadcastMessage = BroadcastMessage(1)
       val encodedBroadcastMessage = encode(broadcastMessage)
+      val encodedBroadcastMessages = Seq(
+        encode(BroadcastMessage(1)),
+        encode(BroadcastMessage(2))
+      )
 
       "no clients are subscribed" in withDispatchActor { da =>
         da ! broadcastMessage
@@ -49,7 +46,7 @@ class DispatchActor$Test extends WordSpec {
 
         val actor = TestProbe()
         da ! Subscribe("123", actor.ref)
-        Thread.sleep(100)// to ensure clients are connected before sending
+        Thread.sleep(waitTime)// to ensure clients are connected before sending
 
         da ! broadcastMessage
 
@@ -58,29 +55,43 @@ class DispatchActor$Test extends WordSpec {
 
       "two clients are subscribed" in withDispatchActor { da =>
 
-        val (client1, client2) = (TestProbe(), TestProbe())
-        da ! Subscribe("1", client1.ref)
-        da ! Subscribe("2", client2.ref)
-        Thread.sleep(100)
+        val (alice, bob) = (TestProbe(), TestProbe())
+        da ! Subscribe("1", alice.ref)
+        da ! Subscribe("2", bob.ref)
+        Thread.sleep(waitTime)
 
         da ! broadcastMessage
 
-        client1.expectMsg(encodedBroadcastMessage)
-        client2.expectMsg(encodedBroadcastMessage)
+        alice.expectMsg(encodedBroadcastMessage)
+        bob.expectMsg(encodedBroadcastMessage)
       }
 
       "a client has subscribed and unsubscribed" in withDispatchActor { da =>
 
-        val (client1, client2) = (TestProbe(), TestProbe())
-        da ! Subscribe("1", client1.ref)
-        da ! Subscribe("2", client2.ref)
+        val (alice, bob) = (TestProbe(), TestProbe())
+        da ! Subscribe("1", alice.ref)
+        da ! Subscribe("2", bob.ref)
         da ! Unsubscribe("1")
-        Thread.sleep(100)
+        Thread.sleep(waitTime)
 
         da ! broadcastMessage
 
-        client1.expectNoMsg()
-        client2.expectMsg(encodedBroadcastMessage)
+        alice.expectNoMsg()
+        bob.expectMsg(encodedBroadcastMessage)
+      }
+
+      "two messages are received out of order" in withDispatchActor { da =>
+
+        val (alice, bob) = (TestProbe(), TestProbe())
+        da ! Subscribe("1", alice.ref)
+        da ! Subscribe("2", bob.ref)
+        Thread.sleep(waitTime)
+
+        da ! BroadcastMessage(2)
+        da ! BroadcastMessage(1)
+
+        alice.receiveN(2) shouldEqual encodedBroadcastMessages
+        bob.receiveN(2) shouldEqual encodedBroadcastMessages
       }
     }
   }
