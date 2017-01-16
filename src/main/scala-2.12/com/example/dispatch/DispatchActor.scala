@@ -1,46 +1,31 @@
 package com.example.dispatch
 
-import akka.actor.{Actor, ActorRef}
-import akka.io.UdpConnected.Disconnect
-
-sealed trait DispatchEvent
-
-sealed trait ConnectionEvent extends DispatchEvent
-case class Subscribe(id: String, subscriber: ActorRef) extends ConnectionEvent
-case class Unsubscribe(id: String) extends ConnectionEvent
-case object EventSourceTerminated extends ConnectionEvent
-
-sealed trait MessageEvent extends DispatchEvent
-case class BroadcastMessage(seqNum: Int) extends MessageEvent
-case class InvalidMessage(msg: String) extends MessageEvent
+import akka.actor.Actor
 
 class DispatchActor extends Actor with DispatchLog {
 
-  import com.example.codec.MessageEventCodec.encode
-
-  var subscribers: Map[String, ActorRef] =
-    Map.empty[String, ActorRef]
+  import Switchboard.{handleConnectionEvent, handleMessage}
+  var sb: Switchboard = Switchboard.empty
 
   override def receive: PartialFunction[Any, Unit] = {
 
-    case Subscribe(id, subscriber) =>
-      subscribers += (id -> subscriber)
-      logSubscription(id, subscribers.size)
+    case Subscribe(id, actorRef) =>
+      sb = handleConnectionEvent(Subscribe(id, actorRef))(sb)
+      logSubscription(id, sb.subscribers.size)
 
     case Unsubscribe(id) =>
-      subscribers -= id
-      logUnsubscription(id, subscribers.size)
+      sb = handleConnectionEvent(Unsubscribe(id))(sb)
+      logUnsubscription(id, sb.subscribers.size)
 
     case EventSourceTerminated =>
-      subscribers.foreach(_._2 ! Disconnect)
-      logEventSourceTermination(subscribers.size)
+      val size = sb.subscribers.size
+      sb = handleConnectionEvent(EventSourceTerminated)(sb)
+      logEventSourceTermination(size)
 
     case InvalidMessage(msg) =>
       //log(s"Received invalid message: $msg")
 
     case BroadcastMessage(seqNum) =>
-      val msg = encode(BroadcastMessage(seqNum))
-      subscribers.foreach(_._2 ! msg)
-      logBroadcastMessage(msg, subscribers.size)
+      sb = handleMessage(BroadcastMessage(seqNum))(sb)
   }
 }

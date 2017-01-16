@@ -7,11 +7,11 @@ import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.testkit.TestProbe
 import akka.util.ByteString
 import org.scalatest.{Matchers, WordSpec}
-import DispatchFlows.delimiter
+import DispatchFlows.crlf
 
 class DispatchFlows$Test extends WordSpec with Matchers {
 
-  import DispatchFlows.{subscribeFlow, eventSourceFlow, delimiter}
+  import DispatchFlows.{subscribeFlow, eventSourceFlow, crlf}
   import com.example.codec.MessageEventCodec.encode
   import scala.concurrent.duration._
 
@@ -20,8 +20,8 @@ class DispatchFlows$Test extends WordSpec with Matchers {
 
   private val timeout = 200 milli
 
-  private val registerMsgBytes = ByteString(s"123$delimiter")
-  private val broadcastMsgBytes = ByteString(s"1|B$delimiter")
+  private val registerMsgBytes = ByteString(s"123$crlf")
+  private val broadcastMsgBytes = ByteString(s"1|B$crlf")
   private val broadcastMsg = BroadcastMessage(1)
 
   "DispatchFlows" should {
@@ -53,15 +53,15 @@ class DispatchFlows$Test extends WordSpec with Matchers {
         client2Sub.request(2)
         eventSourceSub.request(1)
 
-        client1Pub.sendNext(ByteString(s"123$delimiter"))
-        client2Pub.sendNext(ByteString(s"456$delimiter"))
+        client1Pub.sendNext(ByteString(s"123$crlf"))
+        client2Pub.sendNext(ByteString(s"456$crlf"))
 
         Thread.sleep(100) // to ensure clients have registered
-        eventSourcePub.sendNext(ByteString(s"1|B$delimiter"))
+        eventSourcePub.sendNext(ByteString(s"1|B$crlf"))
 
         // actually assert stuff! :P
-        client1Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}$delimiter"))
-        client2Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}$delimiter"))
+        client1Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}$crlf"))
+        client2Sub.expectNext(ByteString(s"${encode(BroadcastMessage(1))}$crlf"))
       }
     }
 
@@ -105,7 +105,7 @@ class DispatchFlows$Test extends WordSpec with Matchers {
       "route messages to the Dispatch Actor" in {
 
         sub.request(1)
-        pub.sendNext(ByteString(s"foobar$delimiter"))
+        pub.sendNext(ByteString(s"foobar$crlf"))
 
         dispatchActor.expectMsg(InvalidMessage("foobar"))
       }

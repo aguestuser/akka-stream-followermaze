@@ -1,32 +1,48 @@
 package com.example.dispatch
 
 import akka.actor.{ActorRef, ActorSystem}
+import akka.io.UdpConnected.Disconnect
 
 import scalaz.State
 
-case class Switchboard(subscribers: Map[String, ActorRef], nextMsg: Int, messages: Map[Int, DispatchEvent])
+case class Switchboard(subscribers: Map[String, ActorRef], nextMsg: Int, messages: Map[Int, MessageEvent])
 
-import State._
+sealed trait ConnectionEvent
+case class Subscribe(id: String, subscriber: ActorRef) extends ConnectionEvent
+case class Unsubscribe(id: String) extends ConnectionEvent
+case object EventSourceTerminated extends ConnectionEvent
 
-object Switchboard {
+sealed trait MessageEvent
+case class BroadcastMessage(seqNum: Int) extends MessageEvent
+case class InvalidMessage(msg: String) extends MessageEvent
+
+object Switchboard extends DispatchLog {
+
+  import com.example.codec.MessageEventCodec.encode
 
   // interface
 
-  def empty: Switchboard = Switchboard(subscribers = Map.empty[String, ActorRef], nextMsg = 1, messages = Map.empty[Int, DispatchEvent])
+  def empty: Switchboard = Switchboard(
+    subscribers = Map.empty[String, ActorRef],
+    nextMsg = 1,
+    messages = Map.empty[Int, MessageEvent]
+  )
 
-
-  def handleMessage(msg: MessageEvent)(switchboard: Switchboard): Switchboard = msg match {
-    case BroadcastMessage(seqNum) =>
-      enqueueAndDrain(seqNum, msg)(switchboard)
-    case _ => switchboard
+  def handleConnectionEvent(e: ConnectionEvent)(sb: Switchboard): Switchboard = e match {
+    case Subscribe(id, actorRef) =>
+      sb.copy(subscribers = sb.subscribers + (id -> actorRef))
+    case Unsubscribe(id) =>
+      sb.copy(subscribers = sb.subscribers - id)
+    case EventSourceTerminated =>
+      sb.subscribers.foreach(_._2 ! Disconnect)
+      Switchboard.empty
   }
 
-//  def updateSwitchboard(msg: MessageEvent): State[Switchboard, Unit] = msg match {
-//    case BroadcastMessage(seqNum) => for {
-//      sb <- modify { enqueueAndDrain(seqNum, msg) }
-//    } yield sb
-//    case _ => state(())
-//  }
+  def handleMessage(msg: MessageEvent)(sb: Switchboard): Switchboard = msg match {
+    case BroadcastMessage(seqNum) =>
+      enqueueAndDrain(seqNum, msg)(sb)
+    case _ => sb
+  }
 
   // helpers
 
@@ -34,7 +50,7 @@ object Switchboard {
     sb.copy(subscribers = sb.subscribers + (id -> subscriber))
 
   def enqueueAndDrain(seqNum: Int, msg: MessageEvent): Switchboard => Switchboard =
-    enqueueMessage(seqNum, msg) _ compose drainMessageQueue
+    enqueueMessage(seqNum, msg) _ andThen drainMessageQueue
 
   def enqueueMessage(seqNum: Int, msg: MessageEvent)(sb: Switchboard): Switchboard =
     sb.copy(messages = sb.messages + (seqNum -> msg))
@@ -45,7 +61,8 @@ object Switchboard {
       case Some(msg) =>
         msg match {
           case BroadcastMessage(_) =>
-            sb.subscribers.foreach(_._2 ! msg)
+            sb.subscribers.foreach(_._2 ! encode(msg))
+            logMessage(msg, sb)
             drainMessageQueue(Switchboard(sb.subscribers, sb.nextMsg + 1, sb.messages - sb.nextMsg))
           case _ => sb
         }

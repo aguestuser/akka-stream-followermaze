@@ -2,7 +2,13 @@ package com.example.dispatch
 
 trait DispatchLog {
 
+  import com.example.codec.MessageEventCodec.encode
+
+  // main function
+
   def log(msg: String): Unit = println(s"+ $msg") // testing seam
+
+  // connection events
 
   def logSubscription(id: String, count: Int): Unit =
     log(subscriptionNotificationOf(id, count))
@@ -21,6 +27,13 @@ trait DispatchLog {
 
   private def eventSourceTerminationNoticeOf(count: Int): String =
     s"Event Source connection lost. Disconnected $count clients."
+
+  // message events
+
+  def logMessage(msg: MessageEvent, sb: Switchboard): Unit = msg match {
+    case BroadcastMessage(_) =>
+      log(broadcastNotificationOf(encode(msg), sb.subscribers.size))
+  }
 
   def logBroadcastMessage(msg: String, count: Int): Unit =
     log(broadcastNotificationOf(msg, count))

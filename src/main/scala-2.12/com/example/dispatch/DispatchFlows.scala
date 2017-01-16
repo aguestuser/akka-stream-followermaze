@@ -9,23 +9,23 @@ import com.example.codec.MessageEventCodec
 
 object DispatchFlows {
 
+  val messageBufferSize: Int = 100000
+
   // serialization
+  val crlf: String = "\n" // for some reason, *not* `\r\n`, works with test scripts
+  val delimiterBytes: ByteString = ByteString(crlf)
 
-  // for some reason, this works with test scripts, *not* `\r\n`
-  val delimiter: String = "\n"
-  val delimiterBytes: ByteString = ByteString(delimiter)
-
-  private val frameLength = 256
+  private val maxFrameLength = 1024
   private val truncation = true
 
   private val deserializationFlow: Flow[ByteString, String, NotUsed] =
     Flow[ByteString]
-      .via(Framing.delimiter(delimiterBytes, frameLength, truncation))
+      .via(Framing.delimiter(delimiterBytes, maxFrameLength, truncation))
       .map(_.utf8String)
 
   private val serializationFlow: Flow[String, ByteString, NotUsed] =
     Flow[String]
-      .map(_ + delimiter)
+      .map(_ + crlf)
       .map(ByteString(_))
 
   // subscribe
@@ -37,7 +37,7 @@ object DispatchFlows {
 
   private def registerFlow(implicit dispatchActor: ActorRef): Flow[String, String, NotUsed] =
     Flow[String].flatMapConcat(id =>
-      Source.actorRef[String](1, OverflowStrategy.fail)
+      Source.actorRef[String](messageBufferSize, OverflowStrategy.fail)
         .mapMaterializedValue(client => dispatchActor ! Subscribe(id, client))
     )
 
