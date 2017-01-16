@@ -13,7 +13,7 @@
 | x | 2 | " | A client connects to `localhost:9099` and sends the message `1\n` | The connection is accepted and the server logs: `New client with id 1 added. 1 total client(s).` |
 | x | 3 | " | A client connects to `localhost:9099` and sends the messasge `2\n` | The connection is accepted and the server logs: `New client with id 2 added. 2 total client(s).` | 
 | x | 4 | " AND a connected event source and connected client | The event source disconnects | The disconnection is logged and the client is disconnected |
-|   | 5 | " AND " | The event source disconnects | The disconnection is logged and the server will not attempt to forward messages to the client |
+| x | 5 | " AND " | The event source disconnects | The disconnection is logged and the server will not attempt to forward messages to the client |
 
 # 1. Send broadcast messages (in order)
 
@@ -45,8 +45,8 @@
 
 | x | # | Given | When | Then |
 |---|---| ----- | ---- | ---- |
-|   | 1 | A running server w/ connected event source and clients Alice (id 1), Bob (id 2), and Charlie (id 3)| The `eventSource` sends a private message from Alice to Bob | Bob will receive a notification |  
-|   | 2 | " | " |  Charlie will not receive a notification |  
+| x | 1 | A running server w/ connected event source and clients Alice (id 1) and Bob (id 2)| The `eventSource` sends a private message from Alice to Bob | Bob will receive a notification |  
+| x | 2 | " | " |  Alice will not receive a notification |  
 
 ## Definitions
 
@@ -84,4 +84,9 @@
 * System runs faster for end users (b/c switchboard doesn't hold actor refs for disconnected clients) 
 * Developers have easier time reading logs (b/c no dead letter notices)
 
-# 
+## Acceptance Criteria
+
+| x | # | Given | When | Then |
+|---|---| ----- | ---- | ---- |
+|   | 1 | A running server with connected event source and clients Alice and Bob | The TCP connection associated with Alice is closed | Alice is unsubscribed from all messages |
+|   | 2 | " AND Alice's TCP connection has been closed | A broadcast message is sent | No dead letter message should be logged |

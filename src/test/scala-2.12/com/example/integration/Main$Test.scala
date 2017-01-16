@@ -87,11 +87,33 @@ class Main$Test extends WordSpec with Matchers {
     }
   }
 
+  def didReceiveMessages(client: TestProbe, msg1: String, msg2: String): Boolean = {
+
+    /**
+      * TESTING NOTE:
+      *
+      * Because the switchboard drains the message queue faster than our TCP clients handle them,
+      * when it reorders messages and then drains the queue, it *sometimes* produces a stream of bytes
+      * containing two messages that appear to our test TCP client to be one message,
+      * despite the fact that the string transmitted over the wire contains a CRLF delimiter.
+      *
+      * As it is outside the scope of this assignment to write a delimiter parser for our test TCP clients,
+      * we write a custom matcher that will return true in both the case (1) when messages have been concatenated
+      * into one string and (2) in which they are transmitted as two separate strings.
+      *
+      * */
+
+    val clientMsg1 = client.receiveOne(timeout)
+    clientMsg1 == ByteString(s"$msg1$msg2") ||
+      Seq(clientMsg1, client.receiveOne(timeout)) == Seq(ByteString(msg1), ByteString(msg2))
+
+  }
+
   "The program" should {
 
     Main.run()
 
-    "Relay Broadcast Messages from event source to clients" when {
+    "Relay Broadcast Messages to all subscribed clients" when {
 
       "receiving one message" in withFixture { f =>
 
@@ -106,34 +128,61 @@ class Main$Test extends WordSpec with Matchers {
 
       "receiving two sequential messages out of order" in withFixture { f =>
 
+        // emit broadcast messages from event source
         f.esClient ! ByteString(s"2|B$crlf")
         f.es.receiveOne(timeout)
 
         f.esClient ! ByteString(s"1|B$crlf")
         f.es.receiveOne(timeout)
 
-        /**
-          * TESTING NOTE:
-          *
-          * Because the switchboard drains the message queue faster than our TCP clients handle them,
-          * when it reorders messages and then drains the queue, it *sometimes* produces a stream of bytes
-          * that appear to our test TCP client as one string, despite the fact that it contains a delimiter.
-          *
-          * As it is outside the scope of this test to write a delimiter parser for our test TCP clients,
-          * we handle the case in which two messages are concatenated into one
-          * (implicitly asserting the equality of that concatenated message to the two underlying messages
-          * it concatenated), and in all other cases assert the values of the sequence of messages.
-          *
-          * */
-
-        val concatenatedMessages = ByteString(s"1|B${crlf}2|B$crlf")
-        val messageSeq = Seq(ByteString(s"1|B$crlf"), ByteString(s"2|B$crlf"))
-
-        val aliceMsg1 = f.alice.receiveOne(timeout)
-        if (aliceMsg1 != concatenatedMessages)
-          Seq(aliceMsg1, f.alice.receiveOne(timeout)) shouldEqual messageSeq
-
+        // assert they were received in order
+        didReceiveMessages(f.alice, s"1|B$crlf", s"2|B$crlf") shouldBe true
+        didReceiveMessages(f.bob, s"1|B$crlf", s"2|B$crlf") shouldBe true
       }
+    }
+
+    "Transmit Private Messages to their intended recipients" when {
+
+      "receiving one message" in withFixture { f =>
+
+        f.esClient ! ByteString(s"1|P|456|123$crlf")
+        f.es.receiveOne(timeout)
+
+        f.alice.expectMsg(timeout, ByteString(s"1|P|456|123$crlf"))
+        f.bob.expectNoMsg(timeout)
+      }
+
+      "receiving multiple out-of-order messages" in withFixture { f =>
+
+        // emit private messages from event source out-of-order
+        f.esClient ! ByteString(s"3|P|456|123$crlf")
+        f.es.receiveOne(timeout)
+
+        f.esClient ! ByteString(s"2|P|123|456$crlf")
+        f.es.receiveOne(timeout)
+
+        f.esClient ! ByteString(s"1|P|456|123$crlf")
+        f.es.receiveOne(timeout)
+
+        // assert they were received in order
+        didReceiveMessages(f.alice, s"1|P|456|123$crlf", s"3|P|456|123$crlf") shouldBe true
+        f.bob.receiveOne(timeout) shouldEqual ByteString(s"2|P|123|456$crlf")
+      }
+    }
+
+    "Correctly handle a combination of message types sent out-of-order" in  withFixture { f =>
+
+      // emit messages from event source out-of-order
+      f.esClient ! ByteString(s"2|P|456|123$crlf")
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"1|B$crlf")
+      f.es.receiveOne(timeout)
+
+      // assert they were received in order
+      didReceiveMessages(f.alice, s"1|B$crlf", s"2|P|456|123$crlf") shouldBe true
+      f.bob.receiveOne(timeout) shouldEqual ByteString(s"1|B$crlf")
+
     }
   }
 }

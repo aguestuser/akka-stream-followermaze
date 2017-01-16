@@ -1,11 +1,7 @@
 package com.example.dispatch
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorRef
 import akka.io.UdpConnected.Disconnect
-
-import scalaz.State
-
-case class Switchboard(subscribers: Map[String, ActorRef], nextMsg: Int, messages: Map[Int, MessageEvent])
 
 sealed trait ConnectionEvent
 case class Subscribe(id: String, subscriber: ActorRef) extends ConnectionEvent
@@ -19,6 +15,12 @@ case class FollowMessage(seqNum: Int, srcId: String, dstId: String) extends Mess
 case class UnfollowMessage(seqNum: Int, srcId: String, dstId: String) extends MessageEvent
 case class StatusUpdate(seqNum: Int, srcId: String) extends MessageEvent
 
+case class Switchboard(
+                        subscribers: Map[String, ActorRef],
+                        nextMsgId: Int,
+                        messages: Map[Int, MessageEvent]
+                      )
+
 object Switchboard extends DispatchLog {
 
   import com.example.codec.MessageEventCodec.encode
@@ -27,7 +29,7 @@ object Switchboard extends DispatchLog {
 
   def empty: Switchboard = Switchboard(
     subscribers = Map.empty[String, ActorRef],
-    nextMsg = 1,
+    nextMsgId = 1,
     messages = Map.empty[Int, MessageEvent]
   )
 
@@ -41,16 +43,13 @@ object Switchboard extends DispatchLog {
       Switchboard.empty
   }
 
-  def handleMessage(msg: MessageEvent)(sb: Switchboard): Switchboard = {
-    logMessageReceipt(msg)
-    msg match {
-      case BroadcastMessage(seqNum) => enqueueAndDrain(seqNum, msg)(sb)
-      case PrivateMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
-      case FollowMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
-      case UnfollowMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
-      case StatusUpdate(seqNum, _) => enqueueAndDrain(seqNum, msg)(sb)
-    }
-}
+  def handleMessage(msg: MessageEvent)(sb: Switchboard): Switchboard = msg match {
+    case BroadcastMessage(seqNum) => enqueueAndDrain(seqNum, msg)(sb)
+    case PrivateMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
+    case FollowMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
+    case UnfollowMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
+    case StatusUpdate(seqNum, _) => enqueueAndDrain(seqNum, msg)(sb)
+  }
 
   // helpers
 
@@ -64,23 +63,23 @@ object Switchboard extends DispatchLog {
     sb.copy(messages = sb.messages + (seqNum -> msg))
 
   def drainMessageQueue(sb: Switchboard): Switchboard =
-    sb.messages.get(sb.nextMsg) match {
+    sb.messages.get(sb.nextMsgId) match {
       case None => sb
       case Some(msg) =>
         sendMessage(sb, msg)
         drainMessageQueue(Switchboard(
           sb.subscribers,
-          sb.nextMsg + 1,
-          sb.messages - sb.nextMsg)
+          sb.nextMsgId + 1,
+          sb.messages - sb.nextMsgId)
         )
     }
 
-  private def sendMessage(sb: Switchboard, msg: MessageEvent): Unit = msg match {
-    case BroadcastMessage(_) =>
-      sb.subscribers.foreach(_._2 ! encode(msg))
-      logMessageTransmission(msg)
-    case _ => // stub
-      sb.subscribers.foreach(_._2 ! encode(msg))
-      logMessageTransmission(msg)
+  private def sendMessage(sb: Switchboard, msg: MessageEvent): Unit = {
+    msg match {
+      case BroadcastMessage(_) => sb.subscribers.foreach(_._2 ! encode(msg))
+      case PrivateMessage(_,_,dstId) => sb.subscribers(dstId) ! encode(msg)
+      case _ => sb.subscribers.foreach(_._2 ! encode(msg)) // stub
+    }
+    logMessageTransmission(msg)
   }
 }

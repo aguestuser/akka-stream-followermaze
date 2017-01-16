@@ -3,6 +3,7 @@ package com.example.dispatch
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Keep
+import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.testkit.TestProbe
 import akka.util.ByteString
@@ -11,64 +12,110 @@ import org.scalatest.{Matchers, WordSpec}
 class DispatchFlows$Test extends WordSpec with Matchers {
 
   import DispatchFlows.{subscribeFlow, eventSourceFlow, crlf}
-  import com.example.codec.MessageEventCodec.encode
   import scala.concurrent.duration._
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
 
   private val timeout = 200 milli
-
+  private val sleepTime = 100
   private val registerMsgBytes = ByteString(s"123$crlf")
-  private val broadcastMsgBytes = ByteString(s"1|B$crlf")
-  private val broadcastMsg = BroadcastMessage(1)
 
   "DispatchFlows" should {
 
     "together" should {
 
-      // materialize client and event source flows
-      val dispatchActor: ActorRef = system.actorOf(Props[DispatchActor])
+      type TestPub = TestPublisher.Probe[ByteString]
+      type TestSub = TestSubscriber.Probe[ByteString]
 
-      val (alicePub, aliceSub) = TestSource.probe[ByteString]
-        .via(subscribeFlow(dispatchActor))
-        .toMat(TestSink.probe[ByteString])(Keep.both)
-        .run()
+      case class FlowFixture(
+                              alicePub: TestPub,
+                              aliceSub: TestSub,
+                              bobPub: TestPub,
+                              bobSub: TestSub,
+                              esPub: TestPub,
+                              esSub: TestSub
+                            )
 
-      val (bobPub, bobSub) = TestSource.probe[ByteString]
-        .via(subscribeFlow(dispatchActor))
-        .toMat(TestSink.probe[ByteString])(Keep.both)
-        .run()
+      def fixture: FlowFixture = {
+        // materialize client and event source flows
+        val dispatchActor: ActorRef = system.actorOf(Props[DispatchActor])
 
-      val (eventSourcePub, eventSourceSub) = TestSource.probe[ByteString]
-        .via(eventSourceFlow(dispatchActor))
-        .toMat(TestSink.probe[ByteString])(Keep.both)
-        .run()
+        val (alicePub, aliceSub) = TestSource.probe[ByteString]
+          .via(subscribeFlow(dispatchActor))
+          .toMat(TestSink.probe[ByteString])(Keep.both)
+          .run()
 
-      "broadcast messages subscribed clients via the Dispatch Actor" in {
+        val (bobPub, bobSub) = TestSource.probe[ByteString]
+          .via(subscribeFlow(dispatchActor))
+          .toMat(TestSink.probe[ByteString])(Keep.both)
+          .run()
 
-        // create downstream pull
-        aliceSub.request(2)
-        bobSub.request(2)
-        eventSourceSub.request(1)
+        val (esPub, esSub) = TestSource.probe[ByteString]
+          .via(eventSourceFlow(dispatchActor))
+          .toMat(TestSink.probe[ByteString])(Keep.both)
+          .run()
 
-        // pass strings through stream
+        // signal downstream capacity for subscriptions
+        esSub.request(1)
+
+        // send subscription messages
         alicePub.sendNext(ByteString(s"123$crlf"))
         bobPub.sendNext(ByteString(s"456$crlf"))
 
-        // ensure clients have registered before sending test messages
-        Thread.sleep(100)
+        // ensure clients have registered before sending messages from event source
+        Thread.sleep(sleepTime)
+
+        // return fixture
+        FlowFixture(alicePub, aliceSub, bobPub, bobSub, esPub, esSub)
+      }
+
+      def withFixture(test: FlowFixture => Any): Any = {
+        val f = fixture
+        try {
+          test(f)
+        }
+        finally {
+          f.aliceSub.request(1)
+          f.bobSub.request(1)
+          f.esPub.sendComplete()
+        }
+      }
+
+      "broadcast a message to subscribed clients" in withFixture { f =>
+
+        // signal downstream capacity for event source messages
+        f.aliceSub.request(2)
+        f.bobSub.request(2)
 
         // send messages out-of-order
-        eventSourcePub.sendNext(ByteString(s"2|B$crlf"))
-        eventSourcePub.sendNext(ByteString(s"1|B$crlf"))
+        f.esPub.sendNext(ByteString(s"2|B$crlf"))
+        f.esPub.sendNext(ByteString(s"1|B$crlf"))
 
         // assert they are received in order
-        aliceSub.expectNext(ByteString(s"1|B$crlf"))
-        aliceSub.expectNext(ByteString(s"2|B$crlf"))
+        f.aliceSub.expectNext(ByteString(s"1|B$crlf"))
+        f.aliceSub.expectNext(ByteString(s"2|B$crlf"))
 
-        bobSub.expectNext(ByteString(s"1|B$crlf"))
-        bobSub.expectNext(ByteString(s"2|B$crlf"))
+        f.bobSub.expectNext(ByteString(s"1|B$crlf"))
+        f.bobSub.expectNext(ByteString(s"2|B$crlf"))
+      }
+
+      "relay a private message to its intended recipient" in withFixture { f =>
+
+        // signal downstream capacity for event source messages
+        f.aliceSub.request(2)
+        f.bobSub.request(1)
+
+        // send messages in reverse order
+        f.esPub.sendNext(ByteString(s"3|P|456|123$crlf"))
+        f.esPub.sendNext(ByteString(s"2|P|123|456$crlf"))
+        f.esPub.sendNext(ByteString(s"1|P|456|123$crlf"))
+
+        // assert they are received in order
+        f.aliceSub.expectNext(ByteString(s"1|P|456|123$crlf"))
+        f.aliceSub.expectNext(ByteString(s"3|P|456|123$crlf"))
+
+        f.bobSub.expectNext(ByteString(s"2|P|123|456$crlf"))
       }
     }
 

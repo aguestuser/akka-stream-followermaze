@@ -52,15 +52,60 @@ class Switchboard$Test extends WordSpec with Matchers {
     }
 
 
-    "handle a broadcast message" in {
+    "handle a broadcast message" when {
 
-      val beforeState = Switchboard(Map("1" -> alice.ref, "2" -> bob.ref), 1, Map(2 -> BroadcastMessage(2), 4 -> BroadcastMessage(4)))
+      val beforeState = Switchboard(
+        Map("1" -> alice.ref, "2" -> bob.ref),
+        1,
+        Map(2 -> BroadcastMessage(2), 4 -> BroadcastMessage(4))
+      )
 
-      handleMessage(BroadcastMessage(1))(beforeState) shouldEqual
-        Switchboard(Map("1" -> alice.ref, "2" -> bob.ref), 3, Map(4 -> BroadcastMessage(4)))
+      "the message is next in sequence: enqueue and send (all in sequence)" in {
 
-      alice.expectMsgAllOf(timeout, encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
-      bob.expectMsgAllOf(timeout, encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+        handleMessage(BroadcastMessage(1))(beforeState) shouldEqual
+          Switchboard(
+            Map("1" -> alice.ref, "2" -> bob.ref),
+            3,
+            Map(4 -> BroadcastMessage(4))
+          )
+
+        alice.expectMsgAllOf(timeout, encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+        bob.expectMsgAllOf(timeout, encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+      }
+
+      "the message is not next in sequence: only enqueue" in {
+
+        handleMessage(BroadcastMessage(3))(beforeState) shouldEqual
+          Switchboard(
+            beforeState.subscribers,
+            beforeState.nextMsgId,
+            Map(2 -> BroadcastMessage(2), 3 -> BroadcastMessage(3), 4 -> BroadcastMessage(4))
+          )
+
+        alice.expectNoMsg(timeout)
+        bob.expectNoMsg(timeout)
+      }
+    }
+
+    "handle a private message" in {
+
+      // only test scenario in which message is next in sequence
+      // as other scenarios are adequately covered by broadcast tests
+
+      val beforeState = Switchboard(
+        Map("1" -> alice.ref, "2" -> bob.ref),
+        1,
+        Map.empty[Int, MessageEvent]
+      )
+
+      handleMessage(PrivateMessage(1, "1", "2"))(beforeState) shouldEqual Switchboard(
+        beforeState.subscribers,
+        2,
+        Map.empty[Int, MessageEvent]
+      )
+
+      alice.expectNoMsg(timeout)
+      bob.expectMsg(encode(PrivateMessage(1, "1", "2")))
     }
 
     "helpers" should {
@@ -112,27 +157,96 @@ class Switchboard$Test extends WordSpec with Matchers {
             bob.expectMsg(encode(BroadcastMessage(1)))
           }
 
-          "the next message is an invalid message" in {
+          "the next message is a private message" in {
+            val beforeState = Switchboard(
+              Map("1" -> alice.ref, "2" -> bob.ref),
+              1,
+              Map(1 -> PrivateMessage(1, "1", "2"))
+            )
 
-            // TODO (requires Invalid messages to have a seq num)
+            drainMessageQueue(beforeState) shouldEqual Switchboard(
+              beforeState.subscribers,
+              2,
+              Map[Int, MessageEvent]()
+            )
+
+            alice.expectNoMsg(timeout)
+            bob.expectMsg(encode(PrivateMessage(1, "1", "2")))
 
           }
         }
 
         "the next N messages are in the queue" when {
 
-          "the next 2 messages are broadcast messages" in {
+          "all messages are broadcast messages" in {
 
             val beforeState = Switchboard(Map("1" -> alice.ref, "2" -> bob.ref), 1, Map(1 -> BroadcastMessage(1), 2 -> BroadcastMessage(2)))
 
             drainMessageQueue(beforeState) shouldEqual Switchboard(beforeState.subscribers, 3, Map[Int, MessageEvent]())
 
-            alice.expectMsgAllOf(timeout, encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
-            bob.expectMsgAllOf(timeout, encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+            // enforce order of messages
+            alice.receiveN(2) shouldEqual Seq(encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+            bob.receiveN(2) shouldEqual Seq(encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+          }
+
+          "all messages are private messages" in {
+            val beforeState = Switchboard(
+              Map("1" -> alice.ref, "2" -> bob.ref),
+              1,
+              Map(1 -> PrivateMessage(1, "1", "2"), 2 -> PrivateMessage(2, "2", "1"))
+            )
+
+            drainMessageQueue(beforeState) shouldEqual Switchboard(
+              beforeState.subscribers,
+              3,
+              Map.empty[Int, MessageEvent]
+            )
+
+            alice.expectMsg(encode(PrivateMessage(2, "2", "1")))
+            bob.expectMsg(encode(PrivateMessage(1, "1", "2")))
+          }
+
+          "the messages are a mix of broadcast and private messages" in {
+
+            val beforeState = Switchboard(
+              Map("1" -> alice.ref, "2" -> bob.ref),
+              1,
+              Map(1 -> BroadcastMessage(1), 2 -> PrivateMessage(2, "2", "1"))
+            )
+
+            drainMessageQueue(beforeState) shouldEqual Switchboard(
+              beforeState.subscribers,
+              3,
+              Map.empty[Int, MessageEvent]
+            )
+
+            // enforce order of alice's messages
+            alice.receiveN(2) shouldEqual Seq(encode(BroadcastMessage(1)), encode(PrivateMessage(2, "2", "1")))
+            bob.expectMsg(encode(BroadcastMessage(1)))
+          }
+        }
+
+        "the next N messages and an out-of-order message are in the queue" when {
+
+          "all messages are broadcast messages" in {
+
+            val beforeState = Switchboard(
+              Map("1" -> alice.ref, "2" -> bob.ref),
+              1,
+              Map(1 -> BroadcastMessage(1), 2 -> BroadcastMessage(2), 4 -> BroadcastMessage(4))
+            )
+
+            drainMessageQueue(beforeState) shouldEqual Switchboard(
+              beforeState.subscribers,
+              3,
+              Map(4 -> BroadcastMessage(4))
+            )
+
+            alice.receiveN(2) shouldEqual Seq(encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+            bob.receiveN(2) shouldEqual Seq(encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
           }
         }
       }
     }
-
   }
 }

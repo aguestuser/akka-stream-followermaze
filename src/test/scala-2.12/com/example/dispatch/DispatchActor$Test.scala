@@ -3,11 +3,13 @@ package com.example.dispatch
 import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
 import akka.testkit.TestProbe
 import org.scalatest.{Matchers, WordSpec}
+import scala.concurrent.duration._
 
 class DispatchActor$Test extends WordSpec with Matchers {
 
   import com.example.codec.MessageEventCodec.encode
   implicit val actorSystem = ActorSystem()
+  val timeout: FiniteDuration = 100 millis
   val waitTime: Int = 50
 
   def withDispatchActor(test: ActorRef => Any): Any = {
@@ -76,7 +78,7 @@ class DispatchActor$Test extends WordSpec with Matchers {
 
         da ! broadcastMessage
 
-        alice.expectNoMsg()
+        alice.expectNoMsg(timeout)
         bob.expectMsg(encodedBroadcastMessage)
       }
 
@@ -93,6 +95,23 @@ class DispatchActor$Test extends WordSpec with Matchers {
         alice.receiveN(2) shouldEqual encodedBroadcastMessages
         bob.receiveN(2) shouldEqual encodedBroadcastMessages
       }
+    }
+
+    "relay a Private Message to its recipient" in withDispatchActor { da =>
+
+      // NOTE: omiting more exhaustive testing of all scenarios
+      // as the logic of such permutations is covered in above broadcast tests,
+      // `Switchboard` unit tests, and integration tests
+
+      val (alice, bob) = (TestProbe(), TestProbe())
+      da ! Subscribe("1", alice.ref)
+      da ! Subscribe("2", bob.ref)
+      Thread.sleep(waitTime)
+
+      da ! PrivateMessage(1, "1", "2")
+
+      alice.expectNoMsg(timeout)
+      bob.expectMsg(encode(PrivateMessage(1, "1", "2")))
     }
   }
 }
