@@ -1,5 +1,5 @@
 package com.example.codec
-import com.example.dispatch.{BroadcastMessage, InvalidMessage}
+import com.example.dispatch._
 import org.scalatest.{Matchers, WordSpec}
 
 class MessageEventCodec$Test extends WordSpec with Matchers {
@@ -8,37 +8,44 @@ class MessageEventCodec$Test extends WordSpec with Matchers {
 
   "MessageEventEncoder" should {
 
-    "decode a BroadcastMessage" when {
-
-      "given a multi-digit sequence number" in {
-        decode("123|B") shouldEqual BroadcastMessage(123)
-      }
-
-      "given a single-digit sequence number" in {
-        decode("1|B") shouldEqual BroadcastMessage(1)
-      }
+    "decode a BroadcastMessage" in {
+      decode("123|B") shouldEqual BroadcastMessage(123)
     }
 
-    "decode an InvalidMessage" when {
-
-      "given junk" in {
-        decode("foobar") shouldEqual InvalidMessage("foobar")
-      }
-
-      "given a malformed BroadcastMessage" in {
-        decode("A|B") shouldEqual InvalidMessage("A|B")
-      }
+    "encode a BroadcastMessage" in {
+      encode(BroadcastMessage(123)) shouldEqual "123|B"
     }
 
-    "encode a BroadcastMessage" when {
+    "decode a Private Message" in {
+      decode("123|P|1|2") shouldEqual PrivateMessage(123, "1", "2")
+    }
 
-      "given a single-digit sequence number" in {
-        encode(BroadcastMessage(1)) shouldEqual "1|B"
-      }
+    "encode a Private Message" in {
+      encode(PrivateMessage(123, "1", "2")) shouldEqual "123|P|1|2"
+    }
 
-      "given a double-digit sequence number" in {
-        encode(BroadcastMessage(123)) shouldEqual "123|B"
-      }
+    "decode a Follow Message" in {
+      decode("123|F|1|2") shouldEqual FollowMessage(123, "1", "2")
+    }
+
+    "encode a Follow Message" in {
+      encode(FollowMessage(123, "1", "2")) shouldEqual "123|F|1|2"
+    }
+
+    "decode an Unfollow Message" in {
+      decode("123|U|1|2") shouldEqual UnfollowMessage(123, "1", "2")
+    }
+
+    "encode an Unfollow Message" in {
+      encode(UnfollowMessage(123, "1", "2")) shouldEqual "123|U|1|2"
+    }
+
+    "decode an Status Update" in {
+      decode("123|S|1") shouldEqual StatusUpdate(123, "1")
+    }
+
+    "encode an Status Update" in {
+      encode(StatusUpdate(123, "1")) shouldEqual "123|U|1"
     }
   }
 }

@@ -9,6 +9,8 @@ class DispatchActor extends Actor with DispatchLog {
 
   override def receive: PartialFunction[Any, Unit] = {
 
+    // connection events
+
     case Subscribe(id, actorRef) =>
       sb = handleConnectionEvent(Subscribe(id, actorRef))(sb)
       logSubscription(id, sb.subscribers.size)
@@ -22,10 +24,22 @@ class DispatchActor extends Actor with DispatchLog {
       sb = handleConnectionEvent(EventSourceTerminated)(sb)
       logEventSourceTermination(size)
 
-    case InvalidMessage(msg) =>
-      //log(s"Received invalid message: $msg")
+    // message events
 
     case BroadcastMessage(seqNum) =>
       sb = handleMessage(BroadcastMessage(seqNum))(sb)
+
+    case PrivateMessage(seqNum, srcId, dstId) =>
+      sb = handleMessage(PrivateMessage(seqNum, srcId, dstId))(sb)
+
+    case FollowMessage(seqNum, srcId, dstId) =>
+      sb = handleMessage(FollowMessage(seqNum, srcId, dstId))(sb)
+
+    case UnfollowMessage(seqNum, srcId, dstId) =>
+      sb = handleMessage(UnfollowMessage(seqNum, srcId, dstId))(sb)
+
+    case StatusUpdate(seqNum, srcId) =>
+      sb = handleMessage(StatusUpdate(seqNum, srcId))(sb)
+
   }
 }

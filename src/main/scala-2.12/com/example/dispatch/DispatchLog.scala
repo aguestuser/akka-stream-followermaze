@@ -30,14 +30,7 @@ trait DispatchLog {
 
   // message events
 
-  def logMessage(msg: MessageEvent, sb: Switchboard): Unit = msg match {
-    case BroadcastMessage(_) =>
-      log(broadcastNotificationOf(encode(msg), sb.subscribers.size))
-  }
+  def logMessageTransmission(msg: MessageEvent): Unit = log(s"Transmitted $msg")
 
-  def logBroadcastMessage(msg: String, count: Int): Unit =
-    log(broadcastNotificationOf(msg, count))
-
-  private def broadcastNotificationOf(msg: String, count: Int): String =
-    s"Broadcast `$msg` to $count clients."
+  def logMessageReceipt(msg: MessageEvent): Unit = log(s"Received $msg")
 }

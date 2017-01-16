@@ -14,7 +14,10 @@ case object EventSourceTerminated extends ConnectionEvent
 
 sealed trait MessageEvent
 case class BroadcastMessage(seqNum: Int) extends MessageEvent
-case class InvalidMessage(msg: String) extends MessageEvent
+case class PrivateMessage(seqNum: Int, srcId: String, dstId: String) extends MessageEvent
+case class FollowMessage(seqNum: Int, srcId: String, dstId: String) extends MessageEvent
+case class UnfollowMessage(seqNum: Int, srcId: String, dstId: String) extends MessageEvent
+case class StatusUpdate(seqNum: Int, srcId: String) extends MessageEvent
 
 object Switchboard extends DispatchLog {
 
@@ -38,11 +41,16 @@ object Switchboard extends DispatchLog {
       Switchboard.empty
   }
 
-  def handleMessage(msg: MessageEvent)(sb: Switchboard): Switchboard = msg match {
-    case BroadcastMessage(seqNum) =>
-      enqueueAndDrain(seqNum, msg)(sb)
-    case _ => sb
-  }
+  def handleMessage(msg: MessageEvent)(sb: Switchboard): Switchboard = {
+    logMessageReceipt(msg)
+    msg match {
+      case BroadcastMessage(seqNum) => enqueueAndDrain(seqNum, msg)(sb)
+      case PrivateMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
+      case FollowMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
+      case UnfollowMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
+      case StatusUpdate(seqNum, _) => enqueueAndDrain(seqNum, msg)(sb)
+    }
+}
 
   // helpers
 
@@ -59,12 +67,20 @@ object Switchboard extends DispatchLog {
     sb.messages.get(sb.nextMsg) match {
       case None => sb
       case Some(msg) =>
-        msg match {
-          case BroadcastMessage(_) =>
-            sb.subscribers.foreach(_._2 ! encode(msg))
-            logMessage(msg, sb)
-            drainMessageQueue(Switchboard(sb.subscribers, sb.nextMsg + 1, sb.messages - sb.nextMsg))
-          case _ => sb
-        }
+        sendMessage(sb, msg)
+        drainMessageQueue(Switchboard(
+          sb.subscribers,
+          sb.nextMsg + 1,
+          sb.messages - sb.nextMsg)
+        )
     }
+
+  private def sendMessage(sb: Switchboard, msg: MessageEvent): Unit = msg match {
+    case BroadcastMessage(_) =>
+      sb.subscribers.foreach(_._2 ! encode(msg))
+      logMessageTransmission(msg)
+    case _ => // stub
+      sb.subscribers.foreach(_._2 ! encode(msg))
+      logMessageTransmission(msg)
+  }
 }

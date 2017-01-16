@@ -15,7 +15,7 @@
 | x | 4 | " AND a connected event source and connected client | The event source disconnects | The disconnection is logged and the client is disconnected |
 |   | 5 | " AND " | The event source disconnects | The disconnection is logged and the server will not attempt to forward messages to the client |
 
-# 1. Send a broadcast message
+# 1. Send broadcast messages (in order)
 
 ## Value
 * allow users to talk to all of their friends at once
@@ -24,15 +24,19 @@
 
 | x | # | Given | When | Then |
 |---|---| ----- | ---- | ---- |
-| x | 1 | A running server, a connected `eventSource` and two clients, Alice and Bob | The `eventSource` sends the server a `Broadcast` message (as defined below) | Alice and Bob both receive the message |
-|   | 2 | " | The `eventSource` sends a `Broadcast` message w/ sequence # 2, *then* a `Broadcast` message w/ sequence # 1 (as defined below) | Alice and Bob will both receive both broadcast messages in the proper sequence |    
+| x | 1 | A running server, a connected `eventSource` and two clients, Alice and Bob | The `eventSource` sends the server a `Broadcast` message w/ sequence # 1 | Alice and Bob both receive the message |
+| x | 2 | " | The `eventSource` sends a `Broadcast` message w/ sequence # 2 | Alice and Bob will both receive both broadcast messages in the proper sequence |
+| x | 3 | " | The `eventSource` sends a `Broadcast` message w/ sequence # 2, *then* a `Broadcast` message w/ sequence # 1 | Alice and Bob will both receive both broadcast messages in the proper sequence |    
+| x | 4 | " | The `eventSource` sends 1000000 broadcast messages out-of-order | Alice and Bob will both receive 1000000 broadcast messages in the proper sequence |
+
 
 ## Definitions
 
 * In AC1: the broadast message is of the form `1|B` (as is the notification received by Alice & Bob)
+* In AC1: the broadast message is of the form `2|B`
 * In AC2: the broadcast messages are of the form `2|B`, `1|B` (as is the notification received by Alice & Bob)
 
-# 2. Send a private message
+# 2. Send private messages
 
 ## Value
 * allow users to send a message that some users, but not others may see
@@ -48,7 +52,7 @@
 
 * The private message in AC's 1 & 2 is of the form: `42|P|1|2|` (as is the notification received by Alice)
 
-# 3. Send a status update
+# 3. Send status updates
 
 ## Value
 * Allow users to receive updates from people they want to follow, but not from people they don't want to follow
@@ -73,3 +77,11 @@
 * AC4: the `Follow` and `StatusUpdate` events are the same as in AC3. The `Unfollow` event is of the form `3|U|2|1`
 * AC5: the `Follow`, `StatusUpdate`, and `Unfollow` events are the same as in AC4. The `StatusUpdate` event is of the form `4|S|1`
 * AC6: the `Follow` and `StatusUpdate` events are the same as in AC2 & AC3
+
+# Unsubscribe disconnected clients
+
+## Value 
+* System runs faster for end users (b/c switchboard doesn't hold actor refs for disconnected clients) 
+* Developers have easier time reading logs (b/c no dead letter notices)
+
+# 

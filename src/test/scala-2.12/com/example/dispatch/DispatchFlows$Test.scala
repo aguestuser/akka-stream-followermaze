@@ -28,7 +28,7 @@ class DispatchFlows$Test extends WordSpec with Matchers {
     "together" should {
 
       // materialize client and event source flows
-      val dispatchActor: ActorRef = system.actorOf(Props[DispatchActor], "TestDispatchActor")
+      val dispatchActor: ActorRef = system.actorOf(Props[DispatchActor])
 
       val (alicePub, aliceSub) = TestSource.probe[ByteString]
         .via(subscribeFlow(dispatchActor))
@@ -112,9 +112,9 @@ class DispatchFlows$Test extends WordSpec with Matchers {
       "route messages to the Dispatch Actor" in {
 
         sub.request(1)
-        pub.sendNext(ByteString(s"foobar$crlf"))
+        pub.sendNext(ByteString(s"1|B$crlf"))
 
-        dispatchActor.expectMsg(InvalidMessage("foobar"))
+        dispatchActor.expectMsg(BroadcastMessage(1))
       }
 
       "send a termination message to the Dispatch actor when event source socket is closed" in {
