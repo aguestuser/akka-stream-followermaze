@@ -1,0 +1,159 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Main</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">com.example</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Main (com.example)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+  <tr>
+    <td class="name">Main$</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">Main$delayedInit$body</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;package com.example
+<i>2</i>&nbsp;
+<i>3</i>&nbsp;import akka.Done
+<i>4</i>&nbsp;import akka.actor.{ActorRef, ActorSystem, Props}
+<i>5</i>&nbsp;import akka.stream.scaladsl.Tcp
+<i>6</i>&nbsp;import akka.stream.{ActorMaterializer, Materializer}
+<i>7</i>&nbsp;import com.example.dispatch.DispatchActor
+<i>8</i>&nbsp;import com.example.dispatch.DispatchFlows.{eventSourceFlow, subscribeFlow}
+<i>9</i>&nbsp;
+<i>10</i>&nbsp;import scala.concurrent.{ExecutionContextExecutor, Future}
+<i>11</i>&nbsp;
+<i>12</i>&nbsp;trait MainTrait {
+<i>13</i>&nbsp;
+<i>14</i>&nbsp;  implicit val system: ActorSystem = ActorSystem()
+<i>15</i>&nbsp;  implicit def executor: ExecutionContextExecutor = system.dispatcher
+<i>16</i>&nbsp;  implicit val materializer: Materializer = ActorMaterializer()
+<i>17</i>&nbsp;  implicit val dispatchActor: ActorRef = system.actorOf(Props[DispatchActor])
+<i>18</i>&nbsp;
+<i>19</i>&nbsp;  val host = &quot;127.0.0.1&quot;
+<i>20</i>&nbsp;  val eventSourcePort = 9090
+<i>21</i>&nbsp;  val userClientPort = 9099
+<i>22</i>&nbsp;
+<i>23</i>&nbsp;  def run(): Future[Seq[Done]] = {
+<i>24</i>&nbsp;    println(s&quot;+ Server online at $host&quot;)
+<i>25</i>&nbsp;    Future.sequence(Seq(
+<i>26</i>&nbsp;      createUserClientSocket(),
+<i>27</i>&nbsp;      createEventSourceSocket()))
+<i>28</i>&nbsp;  }
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;  def createUserClientSocket(): Future[Done] = {
+<i>31</i>&nbsp;    val userClientSocket =Tcp().bind(host, userClientPort)
+<i>32</i>&nbsp;    userClientSocket runForeach { connection =&gt;
+<i>33</i>&nbsp;      println(s&quot;+ User client connected on: ${connection.remoteAddress}&quot;)
+<i>34</i>&nbsp;      connection.handleWith(subscribeFlow)
+<i>35</i>&nbsp;    }
+<i>36</i>&nbsp;  }
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;  def createEventSourceSocket(): Future[Done] = {
+<i>39</i>&nbsp;    val eventSourceSocket = Tcp().bind(host, eventSourcePort)
+<i>40</i>&nbsp;    eventSourceSocket runForeach { connection =&gt;
+<i>41</i>&nbsp;      println(s&quot;+ Event Source connected on: ${connection.remoteAddress}&quot;)
+<i>42</i>&nbsp;      connection.handleWith(eventSourceFlow)
+<i>43</i>&nbsp;    }
+<i>44</i>&nbsp;  }
+<i>45</i>&nbsp;}
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;
+<b class="fc"><i>48</i>&nbsp;object Main extends App with MainTrait {</b>
+<b class="nc"><i>49</i>&nbsp;  run()</b>
+<i>50</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2017-01-17 03:32</div>
+</div>
+</body>
+</html>
