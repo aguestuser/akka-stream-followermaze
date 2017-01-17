@@ -17,6 +17,7 @@ case class StatusUpdate(seqNum: Int, srcId: String) extends MessageEvent
 
 case class Switchboard(
                         subscribers: Map[String, ActorRef],
+                        followers: Map[String, Set[ActorRef]],
                         nextMsgId: Int,
                         messages: Map[Int, MessageEvent]
                       )
@@ -29,6 +30,7 @@ object Switchboard extends DispatchLog {
 
   def empty: Switchboard = Switchboard(
     subscribers = Map.empty[String, ActorRef],
+    followers = Map.empty[String, Set[ActorRef]],
     nextMsgId = 1,
     messages = Map.empty[Int, MessageEvent]
   )
@@ -67,10 +69,11 @@ object Switchboard extends DispatchLog {
       case None => sb
       case Some(msg) =>
         sendMessage(sb, msg)
-        drainMessageQueue(Switchboard(
-          sb.subscribers,
-          sb.nextMsgId + 1,
-          sb.messages - sb.nextMsgId)
+        drainMessageQueue(
+          sb.copy(
+            nextMsgId = sb.nextMsgId + 1,
+            messages = sb.messages - sb.nextMsgId
+          )
         )
     }
 
