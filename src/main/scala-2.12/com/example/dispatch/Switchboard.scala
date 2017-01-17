@@ -85,14 +85,25 @@ object Switchboard extends DispatchLog {
     }
 
   private def send(msg: MessageEvent)(sb: Switchboard): Switchboard = {
+    // perform sending side-effects
     msg match {
       case BroadcastMessage(_) => sb.subscribers.foreach(_._2 ! encode(msg))
-      case PrivateMessage(_,_,dstId) => sb.subscribers(dstId) ! encode(msg)
-      case FollowMessage(_,_,dstId) => sb.subscribers(dstId) ! encode(msg)
+      case PrivateMessage(_,_,dstId) => sb.subscribers.get(dstId).foreach(_ ! encode(msg))
+      case FollowMessage(_,_,dstId) => sb.subscribers.get(dstId).foreach(_ ! encode(msg))
       case UnfollowMessage(_,_,_) => ()
-      case StatusUpdate(_,srcId) => followersOf(sb.followers, srcId).foreach(sb.subscribers(_) ! encode(msg))
+      case StatusUpdate(_,srcId) =>
+        followersOf(sb.followers, srcId)
+          .foreach(id => sb.subscribers.get(id).foreach(_ ! encode(msg)))
     }
+    // perform logging side-effect
     logMessageTransmission(msg)
+    // drain queue of updated switchboard
     drainMessageQueue( sb.copy(nextMsgId = sb.nextMsgId + 1, messages = sb.messages - sb.nextMsgId))
   }
+
+  private def maybeSend(maybeClient: Option[ActorRef], msg: MessageEvent): Unit =
+    maybeClient match {
+      case Some(actorRef) => actorRef ! encode(msg)
+      case _ => ()
+    }
 }

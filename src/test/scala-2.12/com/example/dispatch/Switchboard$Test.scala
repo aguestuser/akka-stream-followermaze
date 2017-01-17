@@ -350,39 +350,71 @@ class Switchboard$Test extends WordSpec with Matchers {
             bob.expectMsg(encode(BroadcastMessage(1)))
           }
 
-          "the next message is a private message" in {
-            val beforeState = Switchboard(
+          "the next message is a private message" when {
+
+            val baseState = Switchboard(
               Map("111" -> alice.ref, "222" -> bob.ref),
               Map.empty[String, Set[String]],
               1,
               Map(1 -> PrivateMessage(1, "111", "222"))
             )
 
-            drainMessageQueue(beforeState) shouldEqual Switchboard(beforeState.subscribers, beforeState.followers, 2,
-              Map[Int, MessageEvent]())
+            "the recipient is a subscriber" in {
 
-            alice.expectNoMsg(timeout)
-            bob.expectMsg(encode(PrivateMessage(1, "111", "222")))
+              drainMessageQueue(baseState) shouldEqual baseState.copy(
+                nextMsgId = 2,
+                messages = Map.empty[Int, MessageEvent]
+              )
+
+              alice.expectNoMsg(timeout)
+              bob.expectMsg(encode(PrivateMessage(1, "111", "222")))
+            }
+
+            "the recipient is not a subscriber -- do not throw"in {
+              val beforeState = baseState.copy(
+                subscribers = Map.empty[String, ActorRef]
+              )
+
+              drainMessageQueue(beforeState) shouldEqual beforeState.copy(
+                nextMsgId = 2,
+                messages = Map.empty[Int, MessageEvent]
+              )
+            }
+
           }
 
-          "the next message is a follow message" in {
+          "the next message is a follow message" when {
 
-            val beforeState = Switchboard(
+            val baseState = Switchboard(
               Map("111" -> alice.ref, "222" -> bob.ref),
               Map.empty[String, Set[String]],
               1,
               Map(1 -> FollowMessage(1, "111", "222"))
             )
 
-            drainMessageQueue(beforeState) shouldEqual Switchboard(
-              beforeState.subscribers,
-              Map("222" -> Set("111")),
-              2,
-              Map.empty[Int, MessageEvent]
-            )
+            "the recipient is a subscriber" in {
 
-            alice.expectNoMsg(timeout)
-            bob.expectMsg(encode(FollowMessage(1, "111", "222")))
+              drainMessageQueue(baseState) shouldEqual Switchboard(
+                baseState.subscribers,
+                Map("222" -> Set("111")),
+                2,
+                Map.empty[Int, MessageEvent]
+              )
+
+              alice.expectNoMsg(timeout)
+              bob.expectMsg(encode(FollowMessage(1, "111", "222")))
+            }
+
+            "the recipient is not a subscriber" in {
+
+              val beforeState = baseState.copy(
+                subscribers = Map.empty[String, ActorRef]
+              )
+
+              noException should be thrownBy drainMessageQueue(beforeState)
+
+            }
+
           }
 
           "the next message is an unfollow message" in {
@@ -437,7 +469,15 @@ class Switchboard$Test extends WordSpec with Matchers {
 
               alice.expectMsg(timeout, encode(StatusUpdate(1, "111")))
               bob.expectMsg(timeout, encode(StatusUpdate(1, "111")))
+            }
 
+            "the sender has a follower that is not subscribed" in {
+
+              val beforeState = baseState.copy(
+                followers = Map("111" -> Set("333"))
+              )
+
+              noException should be thrownBy drainMessageQueue(beforeState)
             }
           }
         }
