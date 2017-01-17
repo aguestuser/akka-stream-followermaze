@@ -27,19 +27,19 @@ class DispatchActor extends Actor with DispatchLog {
     // message events
 
     case BroadcastMessage(seqNum) =>
-      sb = handleMessage(BroadcastMessage(seqNum))(sb)
+      sb = handleMessage(seqNum, BroadcastMessage(seqNum))(sb)
 
     case PrivateMessage(seqNum, srcId, dstId) =>
-      sb = handleMessage(PrivateMessage(seqNum, srcId, dstId))(sb)
+      sb = handleMessage(seqNum, PrivateMessage(seqNum, srcId, dstId))(sb)
 
     case FollowMessage(seqNum, srcId, dstId) =>
-      sb = handleMessage(FollowMessage(seqNum, srcId, dstId))(sb)
+      sb = handleMessage(seqNum, FollowMessage(seqNum, srcId, dstId))(sb)
 
     case UnfollowMessage(seqNum, srcId, dstId) =>
-      sb = handleMessage(UnfollowMessage(seqNum, srcId, dstId))(sb)
+      sb = handleMessage(seqNum, UnfollowMessage(seqNum, srcId, dstId))(sb)
 
     case StatusUpdate(seqNum, srcId) =>
-      sb = handleMessage(StatusUpdate(seqNum, srcId))(sb)
+      sb = handleMessage(seqNum, StatusUpdate(seqNum, srcId))(sb)
 
   }
 }

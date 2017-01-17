@@ -16,7 +16,6 @@ class Main$Test extends WordSpec with Matchers {
 
   implicit val system = ActorSystem()
   val timeout: FiniteDuration = 200 milli
-  val longTimeout: FiniteDuration = 1*timeout
 
   case class TcpFixture(
                          es: TestProbe,
@@ -108,6 +107,22 @@ class Main$Test extends WordSpec with Matchers {
       Seq(clientMsg1, client.receiveOne(timeout)) == Seq(ByteString(msg1), ByteString(msg2))
 
   }
+
+  def didReceiveMessages(client: TestProbe, msg1: String, msg2: String, msg3: String): Boolean = {
+    val concatMsg = ByteString(s"$msg1$msg2$msg3")
+    val clientMsg1 = client.receiveOne(timeout)
+    if (clientMsg1 != concatMsg) {
+      val clientMsg2 = client.receiveOne(timeout)
+      if (
+        clientMsg2 != concatMsg &&
+        Seq(clientMsg1, clientMsg2) != Seq(ByteString(msg1), ByteString(msg2 + msg3))
+        ) {
+        Seq(clientMsg1, clientMsg2, client.receiveOne(timeout)) ==
+          Seq(msg1, msg2, msg3).map(ByteString(_))
+      } else true
+    } else true
+  }
+
 
   "The program" should {
 
@@ -207,24 +222,56 @@ class Main$Test extends WordSpec with Matchers {
       f.alice.expectNoMsg(timeout)
     }
 
-    "Correctly handle a combination of message types sent out-of-order" in  withFixture { f =>
+    "Relay Status Updates to followers but nobody else" in withFixture { f =>
+
+      // emit private messages from event source in reverse order
+
+      f.esClient ! ByteString(s"5|P|111|222$crlf")  // 5. alice sends bob private message
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"4|S|111$crlf") // 4. alice sends second status update
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"3|U|222|111$crlf") // 3. bob unfollows alice
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"2|S|111$crlf") // 2. alice sends status update
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"1|F|222|111$crlf") // 1. bob follows alice
+      f.es.receiveOne(timeout)
+
+      // assert messages received in order, but unfollow & status update not relayed
+      f.alice.expectMsg(timeout, ByteString(s"1|F|222|111$crlf"))
+      didReceiveMessages(f.bob, s"2|S|111$crlf", s"5|P|111|222$crlf") shouldBe true
+
+    }
+
+    "Correctly handle a combination of all possible message types sent out-of-order" in  withFixture { f =>
 
       // emit messages from event source out-of-order
-      f.esClient ! ByteString(s"4|F|111|222$crlf")
+      f.esClient ! ByteString(s"6|P|222|111$crlf")  // 6. bob sends alice a private message
       f.es.receiveOne(timeout)
 
-      f.esClient ! ByteString(s"3|U|333|222$crlf")
+      f.esClient ! ByteString(s"5|B$crlf")  // 5. broadcast message sent
       f.es.receiveOne(timeout)
 
-      f.esClient ! ByteString(s"2|P|222|111$crlf")
+      f.esClient ! ByteString(s"4|S|111$crlf") // 4. alice sends second status update
       f.es.receiveOne(timeout)
 
-      f.esClient ! ByteString(s"1|B$crlf")
+      f.esClient ! ByteString(s"3|U|222|111$crlf") // 3. bob unfollows alice
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"2|S|111$crlf") // 2. alice sends status update
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"1|F|222|111$crlf") // 1. bob follows alice
       f.es.receiveOne(timeout)
 
       // assert they were received in order, omitting unfollow
-      didReceiveMessages(f.alice, s"1|B$crlf", s"2|P|222|111$crlf") shouldBe true
-      didReceiveMessages(f.bob, s"1|B$crlf", s"4|F|111|222$crlf") shouldBe true
+      didReceiveMessages(f.alice, s"1|F|222|111$crlf", s"5|B$crlf", s"6|P|222|111$crlf")
+      didReceiveMessages(f.bob, s"2|S|111$crlf", s"5|B$crlf") shouldBe true
+
     }
   }
 }

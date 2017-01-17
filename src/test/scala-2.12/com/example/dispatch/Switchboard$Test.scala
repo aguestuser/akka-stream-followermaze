@@ -82,7 +82,7 @@ class Switchboard$Test extends WordSpec with Matchers {
 
       "the message is next in sequence: enqueue and send (all in sequence)" in {
 
-        handleMessage(BroadcastMessage(1))(beforeState) shouldEqual
+        handleMessage(1, BroadcastMessage(1))(beforeState) shouldEqual
           Switchboard(beforeState.subscribers, beforeState.followers, 3,
             Map(4 -> BroadcastMessage(4)))
 
@@ -92,7 +92,7 @@ class Switchboard$Test extends WordSpec with Matchers {
 
       "the message is not next in sequence: only enqueue" in {
 
-        handleMessage(BroadcastMessage(3))(beforeState) shouldEqual
+        handleMessage(3, BroadcastMessage(3))(beforeState) shouldEqual
           Switchboard(
             beforeState.subscribers,
             beforeState.followers,
@@ -117,7 +117,7 @@ class Switchboard$Test extends WordSpec with Matchers {
         Map.empty[Int, MessageEvent]
       )
 
-      handleMessage(PrivateMessage(1, "111", "222"))(beforeState) shouldEqual Switchboard(
+      handleMessage(1, PrivateMessage(1, "111", "222"))(beforeState) shouldEqual Switchboard(
         beforeState.subscribers, beforeState.followers, 2,
         Map.empty[Int, MessageEvent])
 
@@ -134,7 +134,7 @@ class Switchboard$Test extends WordSpec with Matchers {
         Map.empty[Int, MessageEvent]
       )
 
-      handleMessage(FollowMessage(1, "222", "111"))(beforeState) shouldEqual Switchboard (
+      handleMessage(1, FollowMessage(1, "222", "111"))(beforeState) shouldEqual Switchboard (
         beforeState.subscribers,
         Map("111" -> Set("222")),
         2,
@@ -155,7 +155,7 @@ class Switchboard$Test extends WordSpec with Matchers {
         Map.empty[Int, MessageEvent]
       )
 
-      handleMessage(UnfollowMessage(1, "222", "111"))(beforeState) shouldEqual beforeState.copy(
+      handleMessage(1, UnfollowMessage(1, "222", "111"))(beforeState) shouldEqual beforeState.copy(
         followers = Map("111" -> Set.empty[String]),
         nextMsgId = 2
       )
@@ -163,6 +163,54 @@ class Switchboard$Test extends WordSpec with Matchers {
       alice.expectNoMsg(timeout)
       bob.expectNoMsg(timeout)
 
+    }
+
+    "handle a status update" when {
+
+      val baseState = Switchboard(
+        Map("111" -> alice.ref, "222" -> bob.ref),
+        Map.empty[String, Set[String]],
+        1,
+        Map.empty[Int, MessageEvent]
+      )
+
+      "the sender has no followers" in {
+
+        handleMessage(1, StatusUpdate(1, "222"))(baseState) shouldEqual baseState.copy(
+          nextMsgId = 2
+        )
+
+        alice.expectNoMsg(timeout)
+        bob.expectNoMsg(timeout)
+      }
+
+      "the sender has a follower" in {
+
+        val beforeState = baseState.copy(
+          followers = Map("111" -> Set("222")) // bob is following alice
+        )
+
+        handleMessage(1, StatusUpdate(1, "111"))(beforeState) shouldEqual beforeState.copy(
+          nextMsgId = 2
+        )
+
+        alice.expectNoMsg(timeout)
+        bob.expectMsg(timeout, encode(StatusUpdate(1, "111")))
+      }
+
+      "the sender has many followers" in {
+
+        val beforeState = baseState.copy(
+          followers = Map("111" -> Set("111", "222")) // alice and bob are following alice
+        )
+
+        handleMessage(1, StatusUpdate(1, "111"))(beforeState) shouldEqual beforeState.copy(
+          nextMsgId = 2
+        )
+
+        alice.expectMsg(encode(StatusUpdate(1, "111")))
+        bob.expectMsg(encode(StatusUpdate(1, "111")))
+      }
     }
 
     "helpers" should {
@@ -218,15 +266,26 @@ class Switchboard$Test extends WordSpec with Matchers {
         }
       }
 
-      "remove a follower" in {
+      "remove a follower" when {
 
-        val beforeState = Switchboard.empty.copy(
-          followers = Map("111" -> Set("222", "333"))
-        )
+        "the target has followers" in {
+          val beforeState = Switchboard.empty.copy(
+            followers = Map("111" -> Set("222", "333"))
+          )
 
-       removeFollower("222", "111")(beforeState) shouldEqual beforeState.copy(
-         followers = Map("111" -> Set("333"))
-       )
+          removeFollower("222", "111")(beforeState) shouldEqual beforeState.copy(
+            followers = Map("111" -> Set("333"))
+          )
+        }
+
+        "the target has no followers" in {
+          removeFollower("222", "111")(Switchboard.empty) shouldEqual Switchboard.empty.copy(
+            followers = Map("111" -> Set.empty[String])
+          )
+          // this oddball behavior, but okay for scope of this assignment
+          // alternative would be to add mapping from string to empty set
+          // every time a subscriber is added to the Switchboard, which seems unnecessary
+        }
 
       }
 
@@ -307,6 +366,7 @@ class Switchboard$Test extends WordSpec with Matchers {
           }
 
           "the next message is a follow message" in {
+
             val beforeState = Switchboard(
               Map("111" -> alice.ref, "222" -> bob.ref),
               Map.empty[String, Set[String]],
@@ -314,23 +374,29 @@ class Switchboard$Test extends WordSpec with Matchers {
               Map(1 -> FollowMessage(1, "111", "222"))
             )
 
-            drainMessageQueue(beforeState) shouldEqual Switchboard(beforeState.subscribers, beforeState.followers, 2,
-              Map[Int, MessageEvent]())
+            drainMessageQueue(beforeState) shouldEqual Switchboard(
+              beforeState.subscribers,
+              Map("222" -> Set("111")),
+              2,
+              Map.empty[Int, MessageEvent]
+            )
 
             alice.expectNoMsg(timeout)
             bob.expectMsg(encode(FollowMessage(1, "111", "222")))
           }
 
           "the next message is an unfollow message" in {
+
             val beforeState = Switchboard(
               Map("111" -> alice.ref, "222" -> bob.ref),
-              Map.empty[String, Set[String]],
+              Map("222" -> Set("111")),
               1,
               Map(1 -> UnfollowMessage(1, "111", "222"))
             )
 
             drainMessageQueue(beforeState) shouldEqual beforeState.copy(
               nextMsgId = 2,
+              followers = Map("222" -> Set.empty[String]),
               messages = Map.empty[Int, MessageEvent]
             )
 
@@ -338,7 +404,42 @@ class Switchboard$Test extends WordSpec with Matchers {
             bob.expectNoMsg(timeout)
           }
 
+          "the next message is a status update" when {
 
+            val baseState = Switchboard(
+              Map("111" -> alice.ref, "222" -> bob.ref),
+              Map.empty[String, Set[String]],
+              1,
+              Map(1 -> StatusUpdate(1, "111"))
+            )
+
+            "the sender has no followers" in {
+
+              drainMessageQueue(baseState) shouldEqual baseState.copy(
+                nextMsgId = 2,
+                messages = Map.empty[Int, MessageEvent]
+              )
+
+              alice.expectNoMsg(timeout)
+              bob.expectNoMsg(timeout)
+            }
+
+            "the sender has followers" in {
+
+              val beforeState = baseState.copy(
+                followers = Map("111" -> Set("111", "222")) // alice is following herself
+              )
+
+              drainMessageQueue(beforeState) shouldEqual beforeState.copy(
+                nextMsgId = 2,
+                messages = Map.empty[Int, MessageEvent]
+              )
+
+              alice.expectMsg(timeout, encode(StatusUpdate(1, "111")))
+              bob.expectMsg(timeout, encode(StatusUpdate(1, "111")))
+
+            }
+          }
         }
 
         "the next N messages are in the queue" when {
@@ -380,20 +481,22 @@ class Switchboard$Test extends WordSpec with Matchers {
 
             val beforeState = Switchboard(
               Map("111" -> alice.ref, "222" -> bob.ref),
-              Map.empty[String, Set[String]],
+              Map("111" -> Set("222")),
               1,
               Map(
                 1 -> BroadcastMessage(1),
                 2 -> PrivateMessage(2, "222", "111"),
                 3 -> FollowMessage(3, "111", "222"),
                 4 -> UnfollowMessage(4, "222", "111"),
-                5 -> FollowMessage(5, "222", "111")
+                5 -> StatusUpdate(5, "222"),
+                6 -> StatusUpdate(6, "111"),
+                7 -> PrivateMessage(7, "111", "222")
               )
             )
 
-            drainMessageQueue(beforeState) shouldEqual
-            beforeState.copy(
-              nextMsgId = 6,
+            drainMessageQueue(beforeState) shouldEqual beforeState.copy(
+              followers = Map("111" -> Set.empty[String], "222" -> Set("111")),
+              nextMsgId = 8,
               messages = Map.empty[Int, MessageEvent]
             )
 
@@ -401,11 +504,14 @@ class Switchboard$Test extends WordSpec with Matchers {
             alice.receiveN(3) shouldEqual Seq(
               encode(BroadcastMessage(1)),
               encode(PrivateMessage(2, "222", "111")),
-              encode(FollowMessage(5, "222", "111")) // don't relay unfollow message
+              // omit unfollow message from bob
+              encode(StatusUpdate(5, "222"))
             )
-            bob.receiveN(2) shouldEqual Seq(
+            bob.receiveN(3) shouldEqual Seq(
               encode(BroadcastMessage(1)),
-              encode(FollowMessage(3, "111", "222"))
+              encode(FollowMessage(3, "111", "222")),
+              // omit status update from alice (who bob is not following)
+              encode(PrivateMessage(7, "111", "222"))
             )
           }
         }

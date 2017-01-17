@@ -43,6 +43,6 @@ private object MessageEventEncoder {
     case PrivateMessage(seqNum, src, dst) => s"$seqNum|P|$src|$dst"
     case FollowMessage(seqNum, src, dst) => s"$seqNum|F|$src|$dst"
     case UnfollowMessage(seqNum, src, dst) => s"$seqNum|U|$src|$dst"
-    case StatusUpdate(seqNum, src) => s"$seqNum|U|$src"
+    case StatusUpdate(seqNum, src) => s"$seqNum|S|$src"
   }
 }

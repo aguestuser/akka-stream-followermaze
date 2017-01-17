@@ -45,7 +45,7 @@ class MessageEventCodec$Test extends WordSpec with Matchers {
     }
 
     "encode an Status Update" in {
-      encode(StatusUpdate(123, "1")) shouldEqual "123|U|1"
+      encode(StatusUpdate(123, "1")) shouldEqual "123|S|1"
     }
   }
 }

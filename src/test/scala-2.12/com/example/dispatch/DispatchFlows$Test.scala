@@ -151,8 +151,26 @@ class DispatchFlows$Test extends WordSpec with Matchers {
         f.aliceSub.expectNext(ByteString(s"3|F|222|111$crlf"))
       }
 
-    }
+      "relay status update to followers" in withFixture { f =>
 
+        // signal downstream capacity for event source messages
+        f.aliceSub.request(1)
+        f.bobSub.request(2)
+
+        // send messages in reverse order
+        f.esPub.sendNext(ByteString(s"5|P|111|222$crlf")) // 5. alice sends bob private message
+        f.esPub.sendNext(ByteString(s"4|S|111$crlf")) // 4. alice sends second status update
+        f.esPub.sendNext(ByteString(s"3|U|222|111$crlf")) // 3. bob unfollows alice
+        f.esPub.sendNext(ByteString(s"2|S|111$crlf")) // 2. alice sends first status update
+        f.esPub.sendNext(ByteString(s"1|F|222|111$crlf")) // 1. bob follows alice
+
+        // assert messages received in order, but alice's second status update not received by bob
+        f.aliceSub.expectNext(ByteString(s"1|F|222|111$crlf"))
+
+        f.bobSub.expectNext(ByteString(s"2|S|111$crlf"))
+        f.bobSub.expectNext(ByteString(s"5|P|111|222$crlf"))
+      }
+    }
 
     "subscribeFlow" should {
 

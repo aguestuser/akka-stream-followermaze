@@ -146,5 +146,23 @@ class DispatchActor$Test extends WordSpec with Matchers {
       bob.expectNoMsg(timeout)
 
     }
+
+    "Relay Status Updates to followers" in withDispatchActor { da =>
+
+      val (alice, bob) = (TestProbe(), TestProbe())
+      da ! Subscribe("1", alice.ref)
+      da ! Subscribe("2", bob.ref)
+      Thread.sleep(sleepTime)
+
+      // send messages in reverse order
+      da ! StatusUpdate(4, "111") // 4. alice sends second status update
+      da ! UnfollowMessage(3, "2", "1") // 3. bob unfollows alice
+      da ! StatusUpdate(2, "1") // 2. alice sends first status update
+      da ! FollowMessage(1, "2", "1") // 1. bob follows alice
+
+      alice.expectMsgAllOf(timeout, encode(FollowMessage(1, "2", "1"))) // don't receive unfollow
+      bob.expectMsgAllOf(timeout, encode(StatusUpdate(2, "1"))) // don't receive second update
+
+    }
   }
 }
