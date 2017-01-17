@@ -10,7 +10,7 @@ class DispatchActor$Test extends WordSpec with Matchers {
   import com.example.codec.MessageEventCodec.encode
   implicit val actorSystem = ActorSystem()
   val timeout: FiniteDuration = 100 millis
-  val waitTime: Int = 50
+  val sleepTime: Int = 25
 
   def withDispatchActor(test: ActorRef => Any): Any = {
     val dispatchActor: ActorRef = actorSystem.actorOf(Props[DispatchActor])
@@ -48,7 +48,7 @@ class DispatchActor$Test extends WordSpec with Matchers {
 
         val actor = TestProbe()
         da ! Subscribe("123", actor.ref)
-        Thread.sleep(waitTime)// to ensure clients are connected before sending
+        Thread.sleep(sleepTime)// to ensure clients are connected before sending
 
         da ! broadcastMessage
 
@@ -60,7 +60,7 @@ class DispatchActor$Test extends WordSpec with Matchers {
         val (alice, bob) = (TestProbe(), TestProbe())
         da ! Subscribe("1", alice.ref)
         da ! Subscribe("2", bob.ref)
-        Thread.sleep(waitTime)
+        Thread.sleep(sleepTime)
 
         da ! broadcastMessage
 
@@ -74,7 +74,7 @@ class DispatchActor$Test extends WordSpec with Matchers {
         da ! Subscribe("1", alice.ref)
         da ! Subscribe("2", bob.ref)
         da ! Unsubscribe("1")
-        Thread.sleep(waitTime)
+        Thread.sleep(sleepTime)
 
         da ! broadcastMessage
 
@@ -87,7 +87,7 @@ class DispatchActor$Test extends WordSpec with Matchers {
         val (alice, bob) = (TestProbe(), TestProbe())
         da ! Subscribe("1", alice.ref)
         da ! Subscribe("2", bob.ref)
-        Thread.sleep(waitTime)
+        Thread.sleep(sleepTime)
 
         da ! BroadcastMessage(2)
         da ! BroadcastMessage(1)
@@ -102,7 +102,7 @@ class DispatchActor$Test extends WordSpec with Matchers {
       val (alice, bob) = (TestProbe(), TestProbe())
       da ! Subscribe("1", alice.ref)
       da ! Subscribe("2", bob.ref)
-      Thread.sleep(waitTime)
+      Thread.sleep(sleepTime)
 
       da ! PrivateMessage(2, "3", "1")
       da ! PrivateMessage(1, "2", "1")
@@ -119,7 +119,7 @@ class DispatchActor$Test extends WordSpec with Matchers {
       val (alice, bob) = (TestProbe(), TestProbe())
       da ! Subscribe("1", alice.ref)
       da ! Subscribe("2", bob.ref)
-      Thread.sleep(waitTime)
+      Thread.sleep(sleepTime)
 
       da ! FollowMessage(2, "3", "1")
       da ! FollowMessage(1, "2", "1")
@@ -128,6 +128,21 @@ class DispatchActor$Test extends WordSpec with Matchers {
         encode(FollowMessage(1, "2", "1")),
         encode(FollowMessage(2, "3", "1"))
       )
+      bob.expectNoMsg(timeout)
+
+    }
+
+    "not relay Unfollow Messages to their targets" in withDispatchActor { da =>
+
+      val (alice, bob) = (TestProbe(), TestProbe())
+      da ! Subscribe("1", alice.ref)
+      da ! Subscribe("2", bob.ref)
+      Thread.sleep(sleepTime)
+
+      da ! UnfollowMessage(2, "1", "2")
+      da ! UnfollowMessage(1, "2", "1")
+
+      alice.expectNoMsg(timeout)
       bob.expectNoMsg(timeout)
 
     }

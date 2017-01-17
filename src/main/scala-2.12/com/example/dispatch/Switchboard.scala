@@ -49,27 +49,38 @@ object Switchboard extends DispatchLog {
     case BroadcastMessage(seqNum) => enqueueAndDrain(seqNum, msg)(sb)
     case PrivateMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
     case FollowMessage(seqNum, srcId, dstId) => followEnqueueAndDrain(seqNum, srcId, dstId, msg)(sb)
-    case UnfollowMessage(seqNum, _, _) => enqueueAndDrain(seqNum, msg)(sb)
+    case UnfollowMessage(seqNum, srcId, dstId) => unfollowEnqueueAndDrain(seqNum, srcId, dstId, msg)(sb)
     case StatusUpdate(seqNum, _) => enqueueAndDrain(seqNum, msg)(sb)
   }
 
   // composite helpers
 
-  def addSubscriber(id: String, subscriber: ActorRef)(sb: Switchboard): Switchboard =
-    sb.copy(subscribers = sb.subscribers + (id -> subscriber))
-
   def followEnqueueAndDrain(seqNum: Int, srcId: String, dstId: String, msg: MessageEvent): Switchboard => Switchboard =
     addFollower(srcId, dstId) _ andThen enqueueAndDrain(seqNum, msg)
+
+  def unfollowEnqueueAndDrain(seqNum: Int, srcId: String, dstId: String, msg: MessageEvent): Switchboard => Switchboard =
+    removeFollower(srcId, dstId) _ andThen enqueueAndDrain(seqNum, msg)
 
   def enqueueAndDrain(seqNum: Int, msg: MessageEvent): Switchboard => Switchboard =
     enqueueMessage(seqNum, msg) _ andThen drainMessageQueue
 
   // helpers
 
-  def addFollower(srcId: String, dstId: String)(sb: Switchboard): Switchboard = {
-    val dstFollowers = sb.followers.getOrElse(dstId, Set.empty[String]) + srcId
-    sb.copy(followers = sb.followers + (dstId -> dstFollowers))
-  }
+  def addSubscriber(id: String, subscriber: ActorRef)(sb: Switchboard): Switchboard =
+    sb.copy(subscribers = sb.subscribers + (id -> subscriber))
+
+  def addFollower(srcId: String, dstId: String)(sb: Switchboard): Switchboard =
+    sb.copy(
+      followers = sb.followers + (dstId -> (followersOf(sb.followers, dstId) + srcId))
+    )
+
+  def removeFollower(srcId: String, dstId: String)(sb: Switchboard): Switchboard =
+    sb.copy(
+      followers = sb.followers + (dstId -> (followersOf(sb.followers, dstId) - srcId))
+    )
+
+  private def followersOf(followers: Map[String, Set[String]], id: String) =
+    followers.getOrElse(id, Set.empty[String])
 
   def enqueueMessage(seqNum: Int, msg: MessageEvent)(sb: Switchboard): Switchboard =
     sb.copy(messages = sb.messages + (seqNum -> msg))
@@ -86,13 +97,11 @@ object Switchboard extends DispatchLog {
 
   private def sendMessage(sb: Switchboard, msg: MessageEvent): Unit = {
     msg match {
-      case BroadcastMessage(_) =>
-        sb.subscribers.foreach(_._2 ! encode(msg))
-      case PrivateMessage(_,_,dstId) =>
-        sb.subscribers(dstId) ! encode(msg)
-      case FollowMessage(_,_,dstId) =>
-        sb.subscribers(dstId) ! encode(msg)
-      case _ => () // better stub
+      case BroadcastMessage(_) => sb.subscribers.foreach(_._2 ! encode(msg))
+      case PrivateMessage(_,_,dstId) => sb.subscribers(dstId) ! encode(msg)
+      case FollowMessage(_,_,dstId) => sb.subscribers(dstId) ! encode(msg)
+      case UnfollowMessage(_,_,_) => ()
+      case StatusUpdate(_,_) => () // stub
     }
     logMessageTransmission(msg)
   }

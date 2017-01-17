@@ -62,11 +62,11 @@
 | x | # | Given | When | Then |
 |---|---| ----- | ---- | ---- |
 |   | 1 | A running server w/ connected event source and clients Alice (id 1) and Bob (id 2)| The `eventSource` sends a `StatusUpdate` from Alice | Bob will not receive a notification |  
-|   | 2 | " | The `eventSource` sends a follow request from Bob to Alice | Alice will receive a `Follow` notification (and the server will record the new relationship) |  
+| x | 2 | " | The `eventSource` sends a follow request from Bob to Alice | Alice will receive a `Follow` notification (and the server will record the new relationship) |  
 |   | 3 | " AND Bob is following Alice| The `eventSource` sends a `StatusUpdate` from Alice | Bob will receive a `StatusUpdate` notification |
-|   | 4 | " AND " | The `eventSource` sends an `Unfollow` event from Bob to Alice | Alice will not receive a notification (and the server will record the new relationship) |
+| x | 4 | " AND " | The `eventSource` sends an `Unfollow` event from Bob to Alice | Alice will not receive a notification (and the server will record the new relationship) |
 |   | 5 | " AND Bob has followed and unfollowed Alice | The `eventSource` sends an `StatusUpdate` from Alice | Bob will not receive a notification |
-|   | 6 | " | The `eventSource` sends a `Follow` event from Bob to Alice with sequence # 1 and a `StatusUpdate` from Alice with sequence # 2 -- but sequence # 2 arrives before sequence #1| Bob will receive a `Follow` notification and a `StatusUpdate` (in that order) |
+|   | 6 | " | The `eventSource` sends a `StatusUpdate` from Alice with sequence # 2, followed by a `Follow` event from Bob to Alice with sequence # 1 | Bob will receive a `Follow` notification and a `StatusUpdate` (in that order) |
 
 
 ## Definitions:

@@ -136,6 +136,21 @@ class DispatchFlows$Test extends WordSpec with Matchers {
         f.bobSub.expectNext(ByteString(s"2|F|111|222$crlf"))
       }
 
+      "not relay unfollow messages to their targets" in withFixture { f =>
+
+        // signal downstream capacity for event source messages
+        f.aliceSub.request(2)
+
+        // send messages in reverse order
+        f.esPub.sendNext(ByteString(s"3|F|222|111$crlf"))
+        f.esPub.sendNext(ByteString(s"2|U|222|111$crlf"))
+        f.esPub.sendNext(ByteString(s"1|P|222|111$crlf"))
+
+        // assert they are received in order, but unfollow omited
+        f.aliceSub.expectNext(ByteString(s"1|P|222|111$crlf"))
+        f.aliceSub.expectNext(ByteString(s"3|F|222|111$crlf"))
+      }
+
     }
 
 

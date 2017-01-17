@@ -199,10 +199,21 @@ class Main$Test extends WordSpec with Matchers {
       }
     }
 
+    "Not transmit Unfollow Messages" in withFixture { f =>
+
+      f.esClient ! ByteString(s"1|U|222|111$crlf")
+      f.es.receiveOne(timeout)
+
+      f.alice.expectNoMsg(timeout)
+    }
+
     "Correctly handle a combination of message types sent out-of-order" in  withFixture { f =>
 
       // emit messages from event source out-of-order
-      f.esClient ! ByteString(s"3|F|111|222$crlf")
+      f.esClient ! ByteString(s"4|F|111|222$crlf")
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"3|U|333|222$crlf")
       f.es.receiveOne(timeout)
 
       f.esClient ! ByteString(s"2|P|222|111$crlf")
@@ -211,9 +222,9 @@ class Main$Test extends WordSpec with Matchers {
       f.esClient ! ByteString(s"1|B$crlf")
       f.es.receiveOne(timeout)
 
-      // assert they were received in order
+      // assert they were received in order, omitting unfollow
       didReceiveMessages(f.alice, s"1|B$crlf", s"2|P|222|111$crlf") shouldBe true
-      didReceiveMessages(f.bob, s"1|B$crlf", s"3|F|111|222$crlf") shouldBe true
+      didReceiveMessages(f.bob, s"1|B$crlf", s"4|F|111|222$crlf") shouldBe true
     }
   }
 }

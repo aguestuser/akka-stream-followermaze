@@ -146,6 +146,25 @@ class Switchboard$Test extends WordSpec with Matchers {
 
     }
 
+    "handle an unfollow message" in {
+
+      val beforeState = Switchboard(
+        Map("111" -> alice.ref, "222" -> bob.ref),
+        Map("111" -> Set("222")),
+        1,
+        Map.empty[Int, MessageEvent]
+      )
+
+      handleMessage(UnfollowMessage(1, "222", "111"))(beforeState) shouldEqual beforeState.copy(
+        followers = Map("111" -> Set.empty[String]),
+        nextMsgId = 2
+      )
+
+      alice.expectNoMsg(timeout)
+      bob.expectNoMsg(timeout)
+
+    }
+
     "helpers" should {
 
       "add a subscriber to the switchboard" when {
@@ -197,6 +216,18 @@ class Switchboard$Test extends WordSpec with Matchers {
               followers = Map("111" -> Set("3", "222"), "222" -> Set("111" ,"3"))
             )
         }
+      }
+
+      "remove a follower" in {
+
+        val beforeState = Switchboard.empty.copy(
+          followers = Map("111" -> Set("222", "333"))
+        )
+
+       removeFollower("222", "111")(beforeState) shouldEqual beforeState.copy(
+         followers = Map("111" -> Set("333"))
+       )
+
       }
 
       "enqueue a message" when {
@@ -289,6 +320,25 @@ class Switchboard$Test extends WordSpec with Matchers {
             alice.expectNoMsg(timeout)
             bob.expectMsg(encode(FollowMessage(1, "111", "222")))
           }
+
+          "the next message is an unfollow message" in {
+            val beforeState = Switchboard(
+              Map("111" -> alice.ref, "222" -> bob.ref),
+              Map.empty[String, Set[String]],
+              1,
+              Map(1 -> UnfollowMessage(1, "111", "222"))
+            )
+
+            drainMessageQueue(beforeState) shouldEqual beforeState.copy(
+              nextMsgId = 2,
+              messages = Map.empty[Int, MessageEvent]
+            )
+
+            alice.expectNoMsg(timeout)
+            bob.expectNoMsg(timeout)
+          }
+
+
         }
 
         "the next N messages are in the queue" when {
@@ -326,7 +376,7 @@ class Switchboard$Test extends WordSpec with Matchers {
             bob.expectMsg(encode(PrivateMessage(1, "111", "222")))
           }
 
-          "the messages are a mix of broadcast, private, and follow messages" in {
+          "the messages are a mix of message types" in {
 
             val beforeState = Switchboard(
               Map("111" -> alice.ref, "222" -> bob.ref),
@@ -335,20 +385,23 @@ class Switchboard$Test extends WordSpec with Matchers {
               Map(
                 1 -> BroadcastMessage(1),
                 2 -> PrivateMessage(2, "222", "111"),
-                3 -> FollowMessage(3, "111", "222")
+                3 -> FollowMessage(3, "111", "222"),
+                4 -> UnfollowMessage(4, "222", "111"),
+                5 -> FollowMessage(5, "222", "111")
               )
             )
 
             drainMessageQueue(beforeState) shouldEqual
             beforeState.copy(
-              nextMsgId = 4,
+              nextMsgId = 6,
               messages = Map.empty[Int, MessageEvent]
             )
 
             // enforce order of alice & bob's messages
-            alice.receiveN(2) shouldEqual Seq(
+            alice.receiveN(3) shouldEqual Seq(
               encode(BroadcastMessage(1)),
-              encode(PrivateMessage(2, "222", "111"))
+              encode(PrivateMessage(2, "222", "111")),
+              encode(FollowMessage(5, "222", "111")) // don't relay unfollow message
             )
             bob.receiveN(2) shouldEqual Seq(
               encode(BroadcastMessage(1)),
