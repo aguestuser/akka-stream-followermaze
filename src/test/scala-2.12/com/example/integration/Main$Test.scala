@@ -55,8 +55,8 @@ class Main$Test extends WordSpec with Matchers {
     bob.receiveOne(timeout)
 
     // subscribe alice and bob
-    aliceClient ! ByteString(s"123$crlf")
-    bobClient ! ByteString(s"456$crlf")
+    aliceClient ! ByteString(s"111$crlf")
+    bobClient ! ByteString(s"222$crlf")
 
     alice.receiveOne(timeout)
     bob.receiveOne(timeout)
@@ -145,44 +145,75 @@ class Main$Test extends WordSpec with Matchers {
 
       "receiving one message" in withFixture { f =>
 
-        f.esClient ! ByteString(s"1|P|456|123$crlf")
+        f.esClient ! ByteString(s"1|P|222|111$crlf")
         f.es.receiveOne(timeout)
 
-        f.alice.expectMsg(timeout, ByteString(s"1|P|456|123$crlf"))
+        f.alice.expectMsg(timeout, ByteString(s"1|P|222|111$crlf"))
         f.bob.expectNoMsg(timeout)
       }
 
       "receiving multiple out-of-order messages" in withFixture { f =>
 
         // emit private messages from event source out-of-order
-        f.esClient ! ByteString(s"3|P|456|123$crlf")
+        f.esClient ! ByteString(s"3|P|222|111$crlf")
         f.es.receiveOne(timeout)
 
-        f.esClient ! ByteString(s"2|P|123|456$crlf")
+        f.esClient ! ByteString(s"2|P|111|222$crlf")
         f.es.receiveOne(timeout)
 
-        f.esClient ! ByteString(s"1|P|456|123$crlf")
+        f.esClient ! ByteString(s"1|P|222|111$crlf")
         f.es.receiveOne(timeout)
 
         // assert they were received in order
-        didReceiveMessages(f.alice, s"1|P|456|123$crlf", s"3|P|456|123$crlf") shouldBe true
-        f.bob.receiveOne(timeout) shouldEqual ByteString(s"2|P|123|456$crlf")
+        didReceiveMessages(f.alice, s"1|P|222|111$crlf", s"3|P|222|111$crlf") shouldBe true
+        f.bob.receiveOne(timeout) shouldEqual ByteString(s"2|P|111|222$crlf")
+      }
+    }
+
+    "Transmit Follow Messages to their intended recipients" when {
+
+      "receiving one message" in withFixture { f =>
+
+        f.esClient ! ByteString(s"1|F|222|111$crlf")
+        f.es.receiveOne(timeout)
+
+        f.alice.expectMsg(timeout, ByteString(s"1|F|222|111$crlf"))
+        f.bob.expectNoMsg(timeout)
+      }
+
+      "receiving multiple out-of-order messages" in withFixture { f =>
+
+        // emit private messages from event source out-of-order
+        f.esClient ! ByteString(s"3|F|222|111$crlf")
+        f.es.receiveOne(timeout)
+
+        f.esClient ! ByteString(s"2|F|111|222$crlf")
+        f.es.receiveOne(timeout)
+
+        f.esClient ! ByteString(s"1|F|222|111$crlf")
+        f.es.receiveOne(timeout)
+
+        // assert they were received in order
+        didReceiveMessages(f.alice, s"1|F|222|111$crlf", s"3|F|222|111$crlf") shouldBe true
+        f.bob.receiveOne(timeout) shouldEqual ByteString(s"2|F|111|222$crlf")
       }
     }
 
     "Correctly handle a combination of message types sent out-of-order" in  withFixture { f =>
 
       // emit messages from event source out-of-order
-      f.esClient ! ByteString(s"2|P|456|123$crlf")
+      f.esClient ! ByteString(s"3|F|111|222$crlf")
+      f.es.receiveOne(timeout)
+
+      f.esClient ! ByteString(s"2|P|222|111$crlf")
       f.es.receiveOne(timeout)
 
       f.esClient ! ByteString(s"1|B$crlf")
       f.es.receiveOne(timeout)
 
       // assert they were received in order
-      didReceiveMessages(f.alice, s"1|B$crlf", s"2|P|456|123$crlf") shouldBe true
-      f.bob.receiveOne(timeout) shouldEqual ByteString(s"1|B$crlf")
-
+      didReceiveMessages(f.alice, s"1|B$crlf", s"2|P|222|111$crlf") shouldBe true
+      didReceiveMessages(f.bob, s"1|B$crlf", s"3|F|111|222$crlf") shouldBe true
     }
   }
 }

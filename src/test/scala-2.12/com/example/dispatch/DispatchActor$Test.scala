@@ -97,21 +97,39 @@ class DispatchActor$Test extends WordSpec with Matchers {
       }
     }
 
-    "relay a Private Message to its recipient" in withDispatchActor { da =>
-
-      // NOTE: omiting more exhaustive testing of all scenarios
-      // as the logic of such permutations is covered in above broadcast tests,
-      // `Switchboard` unit tests, and integration tests
+    "relay a Private Messages to their recipients in correct order" in withDispatchActor { da =>
 
       val (alice, bob) = (TestProbe(), TestProbe())
       da ! Subscribe("1", alice.ref)
       da ! Subscribe("2", bob.ref)
       Thread.sleep(waitTime)
 
-      da ! PrivateMessage(1, "1", "2")
+      da ! PrivateMessage(2, "3", "1")
+      da ! PrivateMessage(1, "2", "1")
 
-      alice.expectNoMsg(timeout)
-      bob.expectMsg(encode(PrivateMessage(1, "1", "2")))
+      alice.receiveN(2, timeout) shouldEqual Seq(
+        encode(PrivateMessage(1, "2", "1")),
+        encode(PrivateMessage(2, "3", "1"))
+      )
+      bob.expectNoMsg(timeout)
+    }
+
+    "relay Follow Messages to their recipients in correct order" in withDispatchActor { da =>
+
+      val (alice, bob) = (TestProbe(), TestProbe())
+      da ! Subscribe("1", alice.ref)
+      da ! Subscribe("2", bob.ref)
+      Thread.sleep(waitTime)
+
+      da ! FollowMessage(2, "3", "1")
+      da ! FollowMessage(1, "2", "1")
+
+      alice.receiveN(2, timeout) shouldEqual Seq(
+        encode(FollowMessage(1, "2", "1")),
+        encode(FollowMessage(2, "3", "1"))
+      )
+      bob.expectNoMsg(timeout)
+
     }
   }
 }

@@ -19,7 +19,7 @@ class DispatchFlows$Test extends WordSpec with Matchers {
 
   private val timeout = 200 milli
   private val sleepTime = 100
-  private val registerMsgBytes = ByteString(s"123$crlf")
+  private val registerMsgBytes = ByteString(s"111$crlf")
 
   "DispatchFlows" should {
 
@@ -60,8 +60,8 @@ class DispatchFlows$Test extends WordSpec with Matchers {
         esSub.request(1)
 
         // send subscription messages
-        alicePub.sendNext(ByteString(s"123$crlf"))
-        bobPub.sendNext(ByteString(s"456$crlf"))
+        alicePub.sendNext(ByteString(s"111$crlf"))
+        bobPub.sendNext(ByteString(s"222$crlf"))
 
         // ensure clients have registered before sending messages from event source
         Thread.sleep(sleepTime)
@@ -100,23 +100,42 @@ class DispatchFlows$Test extends WordSpec with Matchers {
         f.bobSub.expectNext(ByteString(s"2|B$crlf"))
       }
 
-      "relay a private message to its intended recipient" in withFixture { f =>
+      "relay private messages to their recipients in correct order" in withFixture { f =>
 
         // signal downstream capacity for event source messages
         f.aliceSub.request(2)
         f.bobSub.request(1)
 
         // send messages in reverse order
-        f.esPub.sendNext(ByteString(s"3|P|456|123$crlf"))
-        f.esPub.sendNext(ByteString(s"2|P|123|456$crlf"))
-        f.esPub.sendNext(ByteString(s"1|P|456|123$crlf"))
+        f.esPub.sendNext(ByteString(s"3|P|222|111$crlf"))
+        f.esPub.sendNext(ByteString(s"2|P|111|222$crlf"))
+        f.esPub.sendNext(ByteString(s"1|P|222|111$crlf"))
 
         // assert they are received in order
-        f.aliceSub.expectNext(ByteString(s"1|P|456|123$crlf"))
-        f.aliceSub.expectNext(ByteString(s"3|P|456|123$crlf"))
+        f.aliceSub.expectNext(ByteString(s"1|P|222|111$crlf"))
+        f.aliceSub.expectNext(ByteString(s"3|P|222|111$crlf"))
 
-        f.bobSub.expectNext(ByteString(s"2|P|123|456$crlf"))
+        f.bobSub.expectNext(ByteString(s"2|P|111|222$crlf"))
       }
+
+      "relay follow messages to their recipients in correct order" in withFixture { f =>
+
+        // signal downstream capacity for event source messages
+        f.aliceSub.request(2)
+        f.bobSub.request(1)
+
+        // send messages in reverse order
+        f.esPub.sendNext(ByteString(s"3|F|222|111$crlf"))
+        f.esPub.sendNext(ByteString(s"2|F|111|222$crlf"))
+        f.esPub.sendNext(ByteString(s"1|F|222|111$crlf"))
+
+        // assert they are received in order
+        f.aliceSub.expectNext(ByteString(s"1|F|222|111$crlf"))
+        f.aliceSub.expectNext(ByteString(s"3|F|222|111$crlf"))
+
+        f.bobSub.expectNext(ByteString(s"2|F|111|222$crlf"))
+      }
+
     }
 
 
@@ -138,7 +157,7 @@ class DispatchFlows$Test extends WordSpec with Matchers {
         // we destructure the Subscribe message to assert on the actor's type
         val subscribeMsg = dispatchActor.receiveOne(timeout).asInstanceOf[Subscribe]
 
-        subscribeMsg.id shouldEqual "123"
+        subscribeMsg.id shouldEqual "111"
         subscribeMsg.subscriber shouldBe an [ActorRef]
       }
 
