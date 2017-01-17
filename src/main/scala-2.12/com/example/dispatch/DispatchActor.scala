@@ -1,6 +1,7 @@
 package com.example.dispatch
 
 import akka.actor.Actor
+import com.example.event._
 
 class DispatchActor extends Actor with DispatchLog {
 

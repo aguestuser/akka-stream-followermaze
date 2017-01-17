@@ -7,6 +7,7 @@ import org.scalatest.{Matchers, WordSpec}
 
 import scala.concurrent.duration._
 import com.example.codec.MessageEventCodec.encode
+import com.example.event._
 
 class Switchboard$Test extends WordSpec with Matchers {
 

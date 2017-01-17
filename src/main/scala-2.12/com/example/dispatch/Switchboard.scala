@@ -2,18 +2,8 @@ package com.example.dispatch
 
 import akka.actor.ActorRef
 import akka.io.UdpConnected.Disconnect
+import com.example.event._
 
-sealed trait ConnectionEvent
-case class Subscribe(id: String, subscriber: ActorRef) extends ConnectionEvent
-case class Unsubscribe(id: String) extends ConnectionEvent
-case object EventSourceTerminated extends ConnectionEvent
-
-sealed trait MessageEvent
-case class BroadcastMessage(seqNum: Int) extends MessageEvent
-case class PrivateMessage(seqNum: Int, srcId: String, dstId: String) extends MessageEvent
-case class FollowMessage(seqNum: Int, srcId: String, dstId: String) extends MessageEvent
-case class UnfollowMessage(seqNum: Int, srcId: String, dstId: String) extends MessageEvent
-case class StatusUpdate(seqNum: Int, srcId: String) extends MessageEvent
 
 case class Switchboard(
                         subscribers: Map[String, ActorRef],

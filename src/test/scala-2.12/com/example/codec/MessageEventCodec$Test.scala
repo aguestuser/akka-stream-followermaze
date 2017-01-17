@@ -1,5 +1,6 @@
 package com.example.codec
 import com.example.dispatch._
+import com.example.event._
 import org.scalatest.{Matchers, WordSpec}
 
 class MessageEventCodec$Test extends WordSpec with Matchers {

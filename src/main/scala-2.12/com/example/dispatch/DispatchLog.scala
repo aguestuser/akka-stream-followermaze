@@ -1,8 +1,8 @@
 package com.example.dispatch
 
-trait DispatchLog {
+import com.example.event.MessageEvent
 
-  import com.example.codec.MessageEventCodec.encode
+trait DispatchLog {
 
   // main function
 

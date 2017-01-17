@@ -2,6 +2,7 @@ package com.example.dispatch
 
 import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
 import akka.testkit.TestProbe
+import com.example.event._
 import org.scalatest.{Matchers, WordSpec}
 import scala.concurrent.duration._
 

@@ -7,6 +7,7 @@ import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.testkit.TestProbe
 import akka.util.ByteString
+import com.example.event.{BroadcastMessage, EventSourceTerminated, Subscribe}
 import org.scalatest.{Matchers, WordSpec}
 
 class DispatchFlows$Test extends WordSpec with Matchers {

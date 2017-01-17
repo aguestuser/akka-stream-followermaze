@@ -1,6 +1,6 @@
 package com.example.codec
 
-import com.example.dispatch._
+import com.example.event._
 
 import scala.util.parsing.combinator.Parsers
 import scala.util.parsing.input.CharSequenceReader

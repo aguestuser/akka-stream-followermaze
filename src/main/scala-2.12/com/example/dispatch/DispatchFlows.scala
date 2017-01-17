@@ -6,6 +6,7 @@ import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.{Flow, Framing, Sink, Source}
 import akka.util.ByteString
 import com.example.codec.MessageEventCodec
+import com.example.event.{EventSourceTerminated, MessageEvent, Subscribe}
 
 object DispatchFlows {
 
