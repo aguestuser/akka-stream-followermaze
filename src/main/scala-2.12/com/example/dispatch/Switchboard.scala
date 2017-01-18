@@ -4,6 +4,8 @@ import akka.actor.ActorRef
 import akka.io.UdpConnected.Disconnect
 import com.example.event._
 
+import scala.annotation.tailrec
+
 
 case class Switchboard(
                         subscribers: Map[String, ActorRef],
@@ -13,8 +15,6 @@ case class Switchboard(
                       )
 
 object Switchboard extends DispatchLog {
-
-  import com.example.serialization.MessageEventCodec.encode
 
   // interface
 
@@ -38,12 +38,31 @@ object Switchboard extends DispatchLog {
   def handleMessage(seqNum: Int, msg: MessageEvent)(sb: Switchboard): Switchboard =
     (enqueueMessage(seqNum, msg) _ andThen drainMessageQueue)(sb)
 
-  // connection helpers
+  // helpers
 
-  def addSubscriber(id: String, subscriber: ActorRef)(sb: Switchboard): Switchboard =
-    sb.copy(subscribers = sb.subscribers + (id -> subscriber))
 
-  // message helpers
+  def enqueueMessage(seqNum: Int, msg: MessageEvent)(sb: Switchboard): Switchboard =
+    sb.copy(messages = sb.messages + (seqNum -> msg))
+
+  @tailrec
+  def drainMessageQueue(sb: Switchboard): Switchboard =
+    sb.messages.get(sb.nextMsgId) match {
+      case None => sb
+      case Some(msg) => msg match {
+        case FollowMessage(_,srcId,dstId) =>
+          drainMessageQueue(
+            (addFollower(srcId, dstId) _ andThen send(msg) andThen dequeueMessage)(sb)
+          )
+        case UnfollowMessage(_,srcId, dstId) =>
+          drainMessageQueue(
+            (removeFollower(srcId, dstId) _ andThen send(msg) andThen dequeueMessage)(sb)
+          )
+        case _ =>
+          drainMessageQueue(
+            (send(msg) _ andThen dequeueMessage)(sb)
+          )
+      }
+    }
 
   def addFollower(srcId: String, dstId: String)(sb: Switchboard): Switchboard =
     sb.copy(
@@ -58,22 +77,6 @@ object Switchboard extends DispatchLog {
   private def followersOf(followers: Map[String, Set[String]], id: String) =
     followers.getOrElse(id, Set.empty[String])
 
-  def enqueueMessage(seqNum: Int, msg: MessageEvent)(sb: Switchboard): Switchboard =
-    sb.copy(messages = sb.messages + (seqNum -> msg))
-
-  def drainMessageQueue(sb: Switchboard): Switchboard =
-    sb.messages.get(sb.nextMsgId) match {
-      case None => sb
-      case Some(msg) => msg match {
-        case FollowMessage(_,srcId,dstId) =>
-          (addFollower(srcId, dstId) _ andThen send(msg))(sb)
-        case UnfollowMessage(_,srcId, dstId) =>
-          (removeFollower(srcId, dstId) _ andThen send(msg))(sb)
-        case _ =>
-          send(msg)(sb)
-      }
-    }
-
   private def send(msg: MessageEvent)(sb: Switchboard): Switchboard = {
     // perform sending side-effects
     msg match {
@@ -87,13 +90,13 @@ object Switchboard extends DispatchLog {
     }
     // perform logging side-effect
     logMessageTransmission(msg)
-    // drain queue of updated switchboard
-    drainMessageQueue( sb.copy(nextMsgId = sb.nextMsgId + 1, messages = sb.messages - sb.nextMsgId))
+    // return original switchboard (for composition)
+    sb
   }
 
-  private def maybeSend(maybeClient: Option[ActorRef], msg: MessageEvent): Unit =
-    maybeClient match {
-      case Some(actorRef) => actorRef ! msg
-      case _ => ()
-    }
+  private def dequeueMessage(sb: Switchboard): Switchboard =
+    sb.copy(
+      nextMsgId = sb.nextMsgId + 1,
+      messages = sb.messages - sb.nextMsgId
+    )
 }

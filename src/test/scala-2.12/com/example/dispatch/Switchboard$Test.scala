@@ -6,7 +6,6 @@ import akka.testkit.TestProbe
 import org.scalatest.{Matchers, WordSpec}
 
 import scala.concurrent.duration._
-import com.example.serialization.MessageEventCodec.encode
 import com.example.event._
 
 class Switchboard$Test extends WordSpec with Matchers {
@@ -42,17 +41,29 @@ class Switchboard$Test extends WordSpec with Matchers {
       )
     }
 
-    "handle an unsubscription" in {
+    "handle an unsubscription" when {
 
-      val beforeState = Switchboard(
+      val baseState = Switchboard(
         Map("111" -> alice.ref),
         Map.empty[String, Set[String]],
         1,
         Map.empty[Int, MessageEvent]
       )
 
-      handleConnectionEvent(Unsubscribe("111"))(beforeState) shouldEqual
-        Switchboard.empty
+
+      "the client being unsubscribed is subscribed" in {
+        handleConnectionEvent(Unsubscribe("111"))(baseState) shouldEqual baseState.copy(
+          subscribers = Map.empty[String, ActorRef]
+        )
+      }
+
+      "the client being unsubscribed is not subscribed" in {
+        handleConnectionEvent(Unsubscribe("222"))(baseState) shouldEqual baseState
+      }
+
+      "there are no subscribers" in {
+        handleConnectionEvent(Unsubscribe("111"))(Switchboard.empty) shouldEqual Switchboard.empty
+      }
     }
 
     "handle an event source termination" in {
@@ -215,32 +226,6 @@ class Switchboard$Test extends WordSpec with Matchers {
     }
 
     "helpers" should {
-
-      "add a subscriber to the switchboard" when {
-
-        "the switchboard is empty" in {
-
-          val beforeState = Switchboard.empty
-
-          addSubscriber("111", alice.ref)(Switchboard.empty) shouldEqual
-            Switchboard(
-              Map("111" -> alice.ref), beforeState.followers, beforeState.nextMsgId, beforeState.messages)
-        }
-
-        "the switchboard is not empty" in {
-
-          val beforeState = Switchboard(
-            Map("111" -> alice.ref),
-            Map.empty[String, Set[String]],
-            1,
-            Map.empty[Int, MessageEvent]
-          )
-
-          addSubscriber("222", bob.ref)(beforeState) shouldEqual
-            Switchboard(
-              Map("111" -> alice.ref, "222" -> bob.ref), beforeState.followers, beforeState.nextMsgId, beforeState.messages)
-        }
-      }
 
       "add a follower" when {
 
