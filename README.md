@@ -4,9 +4,11 @@ An implementation of the SoundCloud `followermaze` code challenge in Scala.
 
 # Dependencies
 
-* jdk v. 1.8.x
-* scala v. 2.12.x
-* sbt v. 0.13.x
+I have verified the enclosed application passes the verification scripts on a Thinkpad 460s running Debian Stretch with the following programs installed:
+
+* jdk v. 1.8.0
+* scala v. 2.12.1
+* sbt v. 0.13.13
 
 # Run instructions
 
