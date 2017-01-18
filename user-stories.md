@@ -10,8 +10,8 @@
 | x | # | Given | When | Then |
 |---|---| ----- | ---- | ---- |
 | x | 1 | A server running on `localhost` | An `eventSource` tries to connect to `localhost:9009` | The connection is accepted and the server logs `Connected to event source.` |
-| x | 2 | " | A client connects to `localhost:9099` and sends the message `1\n` | The connection is accepted and the server logs: `New client with id 1 added. 1 total client(s).` |
-| x | 3 | " | A client connects to `localhost:9099` and sends the messasge `2\n` | The connection is accepted and the server logs: `New client with id 2 added. 2 total client(s).` | 
+| x | 2 | " | A client connects to `localhost:9099` and sends the message `111\n` | The connection is accepted and the server logs: `New client with id 1 added. 1 total client(s).` |
+| x | 3 | " | A client connects to `localhost:9099` and sends the messasge `222\n` | The connection is accepted and the server logs: `New client with id 2 added. 2 total client(s).` | 
 | x | 4 | " AND a connected event source and connected client | The event source disconnects | The disconnection is logged and the client is disconnected |
 | x | 5 | " AND " | The event source disconnects | The disconnection is logged and the server will not attempt to forward messages to the client |
 
@@ -45,12 +45,12 @@
 
 | x | # | Given | When | Then |
 |---|---| ----- | ---- | ---- |
-| x | 1 | A running server w/ connected event source and clients Alice (id 1) and Bob (id 2)| The `eventSource` sends a private message from Alice to Bob | Bob will receive a notification |  
+| x | 1 | A running server w/ connected event source and clients Alice (id 111) and Bob (id 222)| The `eventSource` sends a private message from Alice to Bob | Bob will receive a notification |  
 | x | 2 | " | " |  Alice will not receive a notification |  
 
 ## Definitions
 
-* The private message in AC's 1 & 2 is of the form: `42|P|1|2|` (as is the notification received by Alice)
+* The private message in AC's 1 & 2 is of the form: `42|P|111|222|` (as is the notification received by Alice)
 
 # 3. Send status updates
 
@@ -61,32 +61,19 @@
 
 | x | # | Given | When | Then |
 |---|---| ----- | ---- | ---- |
-|   | 1 | A running server w/ connected event source and clients Alice (id 1) and Bob (id 2)| The `eventSource` sends a `StatusUpdate` from Alice | Bob will not receive a notification |  
+| x | 1 | A running server w/ connected event source and clients Alice (id 1) and Bob (id 2)| The `eventSource` sends a `StatusUpdate` from Alice | Bob will not receive a notification |  
 | x | 2 | " | The `eventSource` sends a follow request from Bob to Alice | Alice will receive a `Follow` notification (and the server will record the new relationship) |  
-|   | 3 | " AND Bob is following Alice| The `eventSource` sends a `StatusUpdate` from Alice | Bob will receive a `StatusUpdate` notification |
+| x | 3 | " AND Bob is following Alice| The `eventSource` sends a `StatusUpdate` from Alice | Bob will receive a `StatusUpdate` notification |
 | x | 4 | " AND " | The `eventSource` sends an `Unfollow` event from Bob to Alice | Alice will not receive a notification (and the server will record the new relationship) |
-|   | 5 | " AND Bob has followed and unfollowed Alice | The `eventSource` sends an `StatusUpdate` from Alice | Bob will not receive a notification |
-|   | 6 | " | The `eventSource` sends a `StatusUpdate` from Alice with sequence # 2, followed by a `Follow` event from Bob to Alice with sequence # 1 | Bob will receive a `Follow` notification and a `StatusUpdate` (in that order) |
+| x | 5 | " AND Bob has followed and unfollowed Alice | The `eventSource` sends an `StatusUpdate` from Alice | Bob will not receive a notification |
+| x | 6 | " | The `eventSource` sends a `StatusUpdate` from Alice with sequence # 2, followed by a `Follow` event from Bob to Alice with sequence # 1 | Bob will receive a `Follow` notification and a `StatusUpdate` (in that order) |
 
 
 ## Definitions:
 
 * AC1: the `StatusUpdate` event is of the form `1|S|1`
-* AC2: the `Follow` event is of the form `1|F|2|1` (as is the notification received by Alice)
-* AC3: the `Follow` update is the same as AC2. The`StatusUpdate` event is of the form `2|S|1`
-* AC4: the `Follow` and `StatusUpdate` events are the same as in AC3. The `Unfollow` event is of the form `3|U|2|1`
+* AC2: the `Follow` event is of the form `1|F|222|111` (as is the notification received by Alice)
+* AC3: the `Follow` update is the same as AC2. The`StatusUpdate` event is of the form `2|S|111`
+* AC4: the `Follow` and `StatusUpdate` events are the same as in AC3. The `Unfollow` event is of the form `3|U|222|111`
 * AC5: the `Follow`, `StatusUpdate`, and `Unfollow` events are the same as in AC4. The `StatusUpdate` event is of the form `4|S|1`
 * AC6: the `Follow` and `StatusUpdate` events are the same as in AC2 & AC3
-
-# Unsubscribe disconnected clients
-
-## Value 
-* System runs faster for end users (b/c switchboard doesn't hold actor refs for disconnected clients) 
-* Developers have easier time reading logs (b/c no dead letter notices)
-
-## Acceptance Criteria
-
-| x | # | Given | When | Then |
-|---|---| ----- | ---- | ---- |
-|   | 1 | A running server with connected event source and clients Alice and Bob | The TCP connection associated with Alice is closed | Alice is unsubscribed from all messages |
-|   | 2 | " AND Alice's TCP connection has been closed | A broadcast message is sent | No dead letter message should be logged |

@@ -39,6 +39,10 @@ $ sbt test
 
 To see the coverage report, open `$BASE_DIR/index.html` in a browser.
 
+# User Stories
+
+To see the user stories and acceptance criteria I used to guide my completion of the program, see `user-stories.md`. 
+
 # Implementation Notes
 
 ## Design Decisions
