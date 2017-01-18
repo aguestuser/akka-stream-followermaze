@@ -1,4 +1,4 @@
-package com.example.codec
+package com.example.serialization
 import com.example.dispatch._
 import com.example.event._
 import org.scalatest.{Matchers, WordSpec}

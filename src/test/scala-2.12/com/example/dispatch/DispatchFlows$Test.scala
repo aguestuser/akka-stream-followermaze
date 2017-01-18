@@ -9,11 +9,13 @@ import akka.testkit.TestProbe
 import akka.util.ByteString
 import com.example.event.{BroadcastMessage, EventSourceTerminated, Subscribe}
 import org.scalatest.{Matchers, WordSpec}
+import DispatchFlows.{subscribeFlow, eventSourceFlow}
+import com.example.serialization.SerializationFlows.crlf
+import scala.concurrent.duration._
+
 
 class DispatchFlows$Test extends WordSpec with Matchers {
 
-  import DispatchFlows.{subscribeFlow, eventSourceFlow, crlf}
-  import scala.concurrent.duration._
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()

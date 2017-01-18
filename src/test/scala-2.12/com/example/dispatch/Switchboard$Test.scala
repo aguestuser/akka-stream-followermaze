@@ -6,7 +6,7 @@ import akka.testkit.TestProbe
 import org.scalatest.{Matchers, WordSpec}
 
 import scala.concurrent.duration._
-import com.example.codec.MessageEventCodec.encode
+import com.example.serialization.MessageEventCodec.encode
 import com.example.event._
 
 class Switchboard$Test extends WordSpec with Matchers {
@@ -37,9 +37,9 @@ class Switchboard$Test extends WordSpec with Matchers {
         1,
         Map.empty[Int, MessageEvent])
 
-      handleConnectionEvent(Subscribe("222", bob.ref))(beforeState) shouldEqual
-        Switchboard(
-          Map("111" -> alice.ref, "222" -> bob.ref), beforeState.followers, beforeState.nextMsgId, beforeState.messages)
+      handleConnectionEvent(Subscribe("222", bob.ref))(beforeState) shouldEqual beforeState.copy(
+        subscribers = Map("111" -> alice.ref, "222" -> bob.ref)
+      )
     }
 
     "handle an unsubscription" in {
@@ -87,8 +87,8 @@ class Switchboard$Test extends WordSpec with Matchers {
           Switchboard(beforeState.subscribers, beforeState.followers, 3,
             Map(4 -> BroadcastMessage(4)))
 
-        alice.expectMsgAllOf(timeout, encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
-        bob.expectMsgAllOf(timeout, encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+        alice.expectMsgAllOf(timeout, BroadcastMessage(1), BroadcastMessage(2))
+        bob.expectMsgAllOf(timeout, BroadcastMessage(1), BroadcastMessage(2))
       }
 
       "the message is not next in sequence: only enqueue" in {
@@ -123,7 +123,7 @@ class Switchboard$Test extends WordSpec with Matchers {
         Map.empty[Int, MessageEvent])
 
       alice.expectNoMsg(timeout)
-      bob.expectMsg(encode(PrivateMessage(1, "111", "222")))
+      bob.expectMsg(PrivateMessage(1, "111", "222"))
     }
 
     "handle a follow message" in {
@@ -142,7 +142,7 @@ class Switchboard$Test extends WordSpec with Matchers {
         Map.empty[Int, MessageEvent]
       )
 
-      alice.expectMsg(timeout, encode(FollowMessage(1, "222", "111")))
+      alice.expectMsg(timeout, FollowMessage(1, "222", "111"))
       bob.expectNoMsg(timeout)
 
     }
@@ -196,7 +196,7 @@ class Switchboard$Test extends WordSpec with Matchers {
         )
 
         alice.expectNoMsg(timeout)
-        bob.expectMsg(timeout, encode(StatusUpdate(1, "111")))
+        bob.expectMsg(timeout, StatusUpdate(1, "111"))
       }
 
       "the sender has many followers" in {
@@ -209,8 +209,8 @@ class Switchboard$Test extends WordSpec with Matchers {
           nextMsgId = 2
         )
 
-        alice.expectMsg(encode(StatusUpdate(1, "111")))
-        bob.expectMsg(encode(StatusUpdate(1, "111")))
+        alice.expectMsg(StatusUpdate(1, "111"))
+        bob.expectMsg(StatusUpdate(1, "111"))
       }
     }
 
@@ -347,8 +347,8 @@ class Switchboard$Test extends WordSpec with Matchers {
             drainMessageQueue(beforeState) shouldEqual Switchboard(beforeState.subscribers, beforeState.followers, 2,
               Map.empty[Int, MessageEvent])
 
-            alice.expectMsg(encode(BroadcastMessage(1)))
-            bob.expectMsg(encode(BroadcastMessage(1)))
+            alice.expectMsg(BroadcastMessage(1))
+            bob.expectMsg(BroadcastMessage(1))
           }
 
           "the next message is a private message" when {
@@ -368,7 +368,7 @@ class Switchboard$Test extends WordSpec with Matchers {
               )
 
               alice.expectNoMsg(timeout)
-              bob.expectMsg(encode(PrivateMessage(1, "111", "222")))
+              bob.expectMsg(PrivateMessage(1, "111", "222"))
             }
 
             "the recipient is not a subscriber -- do not throw"in {
@@ -403,7 +403,7 @@ class Switchboard$Test extends WordSpec with Matchers {
               )
 
               alice.expectNoMsg(timeout)
-              bob.expectMsg(encode(FollowMessage(1, "111", "222")))
+              bob.expectMsg(FollowMessage(1, "111", "222"))
             }
 
             "the recipient is not a subscriber" in {
@@ -468,8 +468,8 @@ class Switchboard$Test extends WordSpec with Matchers {
                 messages = Map.empty[Int, MessageEvent]
               )
 
-              alice.expectMsg(timeout, encode(StatusUpdate(1, "111")))
-              bob.expectMsg(timeout, encode(StatusUpdate(1, "111")))
+              alice.expectMsg(timeout, StatusUpdate(1, "111"))
+              bob.expectMsg(timeout, StatusUpdate(1, "111"))
             }
 
             "the sender has a follower that is not subscribed" in {
@@ -498,8 +498,8 @@ class Switchboard$Test extends WordSpec with Matchers {
               Map.empty[Int, MessageEvent])
 
             // enforce order of messages
-            alice.receiveN(2) shouldEqual Seq(encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
-            bob.receiveN(2) shouldEqual Seq(encode(BroadcastMessage(1)), encode(BroadcastMessage(2)))
+            alice.receiveN(2) shouldEqual Seq(BroadcastMessage(1), BroadcastMessage(2))
+            bob.receiveN(2) shouldEqual Seq(BroadcastMessage(1), BroadcastMessage(2))
           }
 
           "all messages are private messages" in {
@@ -514,8 +514,8 @@ class Switchboard$Test extends WordSpec with Matchers {
             drainMessageQueue(beforeState) shouldEqual Switchboard(beforeState.subscribers, beforeState.followers, 3,
               Map.empty[Int, MessageEvent])
 
-            alice.expectMsg(encode(PrivateMessage(2, "222", "111")))
-            bob.expectMsg(encode(PrivateMessage(1, "111", "222")))
+            alice.expectMsg(PrivateMessage(2, "222", "111"))
+            bob.expectMsg(PrivateMessage(1, "111", "222"))
           }
 
           "the messages are a mix of message types" in {
@@ -543,16 +543,16 @@ class Switchboard$Test extends WordSpec with Matchers {
 
             // enforce order of alice & bob's messages
             alice.receiveN(3) shouldEqual Seq(
-              encode(BroadcastMessage(1)),
-              encode(PrivateMessage(2, "222", "111")),
+              BroadcastMessage(1),
+              PrivateMessage(2, "222", "111"),
               // omit unfollow message from bob
-              encode(StatusUpdate(5, "222"))
+              StatusUpdate(5, "222")
             )
             bob.receiveN(3) shouldEqual Seq(
-              encode(BroadcastMessage(1)),
-              encode(FollowMessage(3, "111", "222")),
+              BroadcastMessage(1),
+              FollowMessage(3, "111", "222"),
               // omit status update from alice (who bob is not following)
-              encode(PrivateMessage(7, "111", "222"))
+              PrivateMessage(7, "111", "222")
             )
           }
         }
@@ -574,12 +574,12 @@ class Switchboard$Test extends WordSpec with Matchers {
               )
 
             alice.receiveN(2) shouldEqual Seq(
-              encode(BroadcastMessage(1)),
-              encode(BroadcastMessage(2))
+              BroadcastMessage(1),
+              BroadcastMessage(2)
             )
             bob.receiveN(2) shouldEqual Seq(
-              encode(BroadcastMessage(1)),
-              encode(BroadcastMessage(2))
+              BroadcastMessage(1),
+              BroadcastMessage(2)
             )
           }
         }

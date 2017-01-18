@@ -14,7 +14,7 @@ case class Switchboard(
 
 object Switchboard extends DispatchLog {
 
-  import com.example.codec.MessageEventCodec.encode
+  import com.example.serialization.MessageEventCodec.encode
 
   // interface
 
@@ -77,13 +77,13 @@ object Switchboard extends DispatchLog {
   private def send(msg: MessageEvent)(sb: Switchboard): Switchboard = {
     // perform sending side-effects
     msg match {
-      case BroadcastMessage(_) => sb.subscribers.foreach(_._2 ! encode(msg))
-      case PrivateMessage(_,_,dstId) => sb.subscribers.get(dstId).foreach(_ ! encode(msg))
-      case FollowMessage(_,_,dstId) => sb.subscribers.get(dstId).foreach(_ ! encode(msg))
+      case BroadcastMessage(_) => sb.subscribers.foreach(_._2 ! msg)
+      case PrivateMessage(_,_,dstId) => sb.subscribers.get(dstId).foreach(_ ! msg)
+      case FollowMessage(_,_,dstId) => sb.subscribers.get(dstId).foreach(_ ! msg)
       case UnfollowMessage(_,_,_) => ()
       case StatusUpdate(_,srcId) =>
         followersOf(sb.followers, srcId)
-          .foreach(id => sb.subscribers.get(id).foreach(_ ! encode(msg)))
+          .foreach(id => sb.subscribers.get(id).foreach(_ ! msg))
     }
     // perform logging side-effect
     logMessageTransmission(msg)
@@ -93,7 +93,7 @@ object Switchboard extends DispatchLog {
 
   private def maybeSend(maybeClient: Option[ActorRef], msg: MessageEvent): Unit =
     maybeClient match {
-      case Some(actorRef) => actorRef ! encode(msg)
+      case Some(actorRef) => actorRef ! msg
       case _ => ()
     }
 }

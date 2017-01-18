@@ -6,7 +6,7 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.testkit.TestProbe
 import akka.util.ByteString
 import com.example.Main
-import com.example.dispatch.DispatchFlows.crlf
+import com.example.serialization.SerializationFlows.crlf
 import com.example.support.TcpClient
 import org.scalatest.{Matchers, WordSpec}
 

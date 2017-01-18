@@ -8,7 +8,7 @@ import scala.concurrent.duration._
 
 class DispatchActor$Test extends WordSpec with Matchers {
 
-  import com.example.codec.MessageEventCodec.encode
+  import com.example.serialization.MessageEventCodec.encode
   implicit val actorSystem = ActorSystem()
   val timeout: FiniteDuration = 100 millis
   val sleepTime: Int = 25
@@ -34,15 +34,8 @@ class DispatchActor$Test extends WordSpec with Matchers {
 
     "relay a Broadcast message to all subscribed clients" when {
 
-      val broadcastMessage = BroadcastMessage(1)
-      val encodedBroadcastMessage = encode(broadcastMessage)
-      val encodedBroadcastMessages = Seq(
-        encode(BroadcastMessage(1)),
-        encode(BroadcastMessage(2))
-      )
-
       "no clients are subscribed" in withDispatchActor { da =>
-        da ! broadcastMessage
+        da ! BroadcastMessage(1)
       }
 
       "one client is subscribed" in withDispatchActor { da =>
@@ -51,9 +44,9 @@ class DispatchActor$Test extends WordSpec with Matchers {
         da ! Subscribe("123", actor.ref)
         Thread.sleep(sleepTime)// to ensure clients are connected before sending
 
-        da ! broadcastMessage
+        da ! BroadcastMessage(1)
 
-        actor.expectMsg(encodedBroadcastMessage)
+        actor.expectMsg(BroadcastMessage(1))
       }
 
       "two clients are subscribed" in withDispatchActor { da =>
@@ -63,10 +56,10 @@ class DispatchActor$Test extends WordSpec with Matchers {
         da ! Subscribe("2", bob.ref)
         Thread.sleep(sleepTime)
 
-        da ! broadcastMessage
+        da ! BroadcastMessage(1)
 
-        alice.expectMsg(encodedBroadcastMessage)
-        bob.expectMsg(encodedBroadcastMessage)
+        alice.expectMsg(BroadcastMessage(1))
+        bob.expectMsg(BroadcastMessage(1))
       }
 
       "a client has subscribed and unsubscribed" in withDispatchActor { da =>
@@ -77,10 +70,10 @@ class DispatchActor$Test extends WordSpec with Matchers {
         da ! Unsubscribe("1")
         Thread.sleep(sleepTime)
 
-        da ! broadcastMessage
+        da ! BroadcastMessage(1)
 
         alice.expectNoMsg(timeout)
-        bob.expectMsg(encodedBroadcastMessage)
+        bob.expectMsg(BroadcastMessage(1))
       }
 
       "two messages are received out of order" in withDispatchActor { da =>
@@ -93,8 +86,8 @@ class DispatchActor$Test extends WordSpec with Matchers {
         da ! BroadcastMessage(2)
         da ! BroadcastMessage(1)
 
-        alice.receiveN(2) shouldEqual encodedBroadcastMessages
-        bob.receiveN(2) shouldEqual encodedBroadcastMessages
+        alice.receiveN(2) shouldEqual Seq(BroadcastMessage(1),BroadcastMessage(2))
+        bob.receiveN(2) shouldEqual Seq(BroadcastMessage(1), BroadcastMessage(2))
       }
     }
 
@@ -109,8 +102,8 @@ class DispatchActor$Test extends WordSpec with Matchers {
       da ! PrivateMessage(1, "2", "1")
 
       alice.receiveN(2, timeout) shouldEqual Seq(
-        encode(PrivateMessage(1, "2", "1")),
-        encode(PrivateMessage(2, "3", "1"))
+        PrivateMessage(1, "2", "1"),
+        PrivateMessage(2, "3", "1")
       )
       bob.expectNoMsg(timeout)
     }
@@ -126,8 +119,8 @@ class DispatchActor$Test extends WordSpec with Matchers {
       da ! FollowMessage(1, "2", "1")
 
       alice.receiveN(2, timeout) shouldEqual Seq(
-        encode(FollowMessage(1, "2", "1")),
-        encode(FollowMessage(2, "3", "1"))
+        FollowMessage(1, "2", "1"),
+        FollowMessage(2, "3", "1")
       )
       bob.expectNoMsg(timeout)
 
@@ -161,8 +154,8 @@ class DispatchActor$Test extends WordSpec with Matchers {
       da ! StatusUpdate(2, "1") // 2. alice sends first status update
       da ! FollowMessage(1, "2", "1") // 1. bob follows alice
 
-      alice.expectMsgAllOf(timeout, encode(FollowMessage(1, "2", "1"))) // don't receive unfollow
-      bob.expectMsgAllOf(timeout, encode(StatusUpdate(2, "1"))) // don't receive second update
+      alice.expectMsgAllOf(timeout, FollowMessage(1, "2", "1")) // don't receive unfollow
+      bob.expectMsgAllOf(timeout, StatusUpdate(2, "1")) // don't receive second update
 
     }
   }
