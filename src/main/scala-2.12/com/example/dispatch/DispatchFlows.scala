@@ -77,10 +77,10 @@ object DispatchFlows {
     * producing these messages is terminated, the DispatchActor is sent an `EventSourceTerminated`
     * message.
     *
-    * Outgoing messages (which will be emited back to the event source)
+    * Outgoing messages (which will be emitted back to the event source)
     * are produced by a Source wrapping an actor materialized along with the flow.
     *
-    * Whatever messages are received by this actor will be emited back to the event source
+    * Whatever messages are received by this actor will be emitted back to the event source
     * socket. However, as the event source socket expects no messages, we leave this
     * actor as a stub and do not send it anything.
     *
