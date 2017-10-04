@@ -1,6 +1,6 @@
 # Followermaze
 
-An implementation of the SoundCloud `followermaze` code challenge in Scala.
+An implementation of the [REDACTED] `followermaze` code challenge in Scala.
 
 # Dependencies
 
@@ -12,7 +12,7 @@ I have verified the enclosed application passes the verification scripts on a Th
 
 # Run instructions
 
-The below instructions assume that `$BASE_DIR` is the file in which this README file is located. 
+The below instructions assume that `$BASE_DIR` is the file in which this README file is located.
 
 Open two terminal windows.In the first, start the application:
 
@@ -31,7 +31,7 @@ $ ./followermaze.sh
 # Tests
 
 To run the tests, run:
- 
+
 ```
 $ cd $BASE_DIR
 $ sbt test
@@ -41,7 +41,7 @@ To see the coverage report, open `$BASE_DIR/index.html` in a browser.
 
 # User Stories
 
-To see the user stories and acceptance criteria I used to guide my completion of the program, see `user-stories.md`. 
+To see the user stories and acceptance criteria I used to guide my completion of the program, see `user-stories.md`.
 
 # Implementation Notes
 
@@ -109,5 +109,5 @@ I used parser combinators to decode the messages coming off the wire because the
       * routes the message to a subset of clients based on the message type and the subscribers/followers list
       * modifies the follower list if appropriate
     * when messages are "sent" the are transmitted to actors in the `subscriptionFlow` pipeline, whence they are emitted back into the `subscriptionFlow` stream, serialized and placed back on the appropriate client socket
- 
+
  * FIN!
